@@ -7,30 +7,38 @@ class Zutat:
     name: str
     anzahl: float
     einheit: str
+    kategorie: str
 
     def scale(self, factor: float):
         return Zutat(
             name=self.name,
             anzahl=round(self.anzahl * factor, 2),
             einheit=self.einheit,
+            kategorie=self.kategorie,
         )
 
 
 @dataclass
-class Recipe:
+class Rezept:
     id: str
     name: str
-    servings: int
-    ingredients: List[Zutat]
-    instructions: str = ""
+    portionen: int
+    zutaten: List[Zutat]
+    rezeptanleitung: str = ""
 
-    def scale_to(self, servings: int) -> List[Zutat]:
-        factor = servings / self.servings
-        return [i.scale(factor) for i in self.ingredients]
+    def scale_to(self, portionen: int) -> List[Zutat]:
+        factor = portionen / self.portionen
+        return [i.scale(factor) for i in self.zutaten]
 
 
 @dataclass
-class MealPlanEntry:
-    date: str  # YYYY-MM-DD
-    recipe_id: str
-    servings: int
+class Speiseplaneintrag:
+    datum: str  # YYYY-MM-DD
+    rezept_id: str
+    portionen: int
+
+@dataclass
+class Kategorie:
+    id: str
+    name: str
+    autoeinkauf: bool

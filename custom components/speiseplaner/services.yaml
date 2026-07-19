@@ -1,0 +1,36 @@
+add_rezept:
+  name: Rezept hinzufügen
+  fields:
+    name:
+      required: true
+      example: "Lasagne"
+    portionen:
+      required: true
+      example: 4
+    zutaten:
+      required: true
+      example:
+        - name: "Hackfleisch"
+          anzahl: 500
+          einheit: "g"
+          kategorie: "Fleisch"
+
+add_speiseplaneintrag:
+  name: Eintrag zum Speiseplan hinzufügen
+  fields:
+    datum:
+      example: "2026-07-20"
+    rezept_id:
+      example: "uuid"
+    portionen:
+      example: 4
+
+add_kategorie:
+  name: Zutatenkategorie hinzufügen
+  fields:
+    name:
+      required: true
+      example: "Fleisch"
+    autoeinkauf:
+      required: true
+      example: true
