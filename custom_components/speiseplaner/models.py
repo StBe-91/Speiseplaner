@@ -42,3 +42,13 @@ class Kategorie:
     id: str
     name: str
     autoeinkauf: bool
+
+
+@dataclass
+class Einkaufslisteneintrag:
+    id: str
+    name: str
+    anzahl: float
+    einheit: str
+    kategorie: str
+    erledigt: bool = False
