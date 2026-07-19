@@ -64,6 +64,36 @@ def test_unterschiedliche_einheit_wird_nicht_gemergt():
     assert len(storage.data["einkaufsliste"]) == 2
 
 
+def test_find_gibt_passendes_element_zurueck():
+    storage = make_storage()
+    assert storage.find("kategorien", "k1")["name"] == "Fleisch"
+
+
+def test_find_gibt_none_bei_unbekannter_id_zurueck():
+    storage = make_storage()
+    assert storage.find("kategorien", "unbekannt") is None
+
+
+def test_remove_entfernt_element_und_gibt_true_zurueck():
+    storage = make_storage()
+    assert storage.remove("kategorien", "k1") is True
+    assert storage.find("kategorien", "k1") is None
+
+
+def test_remove_gibt_false_bei_unbekannter_id_zurueck():
+    storage = make_storage()
+    assert storage.remove("kategorien", "unbekannt") is False
+    assert len(storage.data["kategorien"]) == 2
+
+
+def test_manuelles_hinzufuegen_ignoriert_autoeinkauf():
+    storage = make_storage()
+    storage.add_einkaufsliste_eintrag("Pfeffer", 1, "TL", "Gewürze")
+
+    assert len(storage.data["einkaufsliste"]) == 1
+    assert storage.data["einkaufsliste"][0]["name"] == "Pfeffer"
+
+
 def test_erledigter_eintrag_wird_nicht_wieder_aufgefuellt():
     storage = make_storage()
     storage.add_zutaten_to_einkaufsliste([Zutat("Butter", 250, "g", "Fleisch")])

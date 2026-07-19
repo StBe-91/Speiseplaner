@@ -33,6 +33,7 @@ class Rezept:
 
 @dataclass
 class Speiseplaneintrag:
+    id: str
     datum: str  # YYYY-MM-DD
     rezept_id: str
     portionen: int

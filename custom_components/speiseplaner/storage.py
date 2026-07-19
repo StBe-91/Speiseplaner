@@ -22,36 +22,50 @@ class SpeiseplanerStorage:
     async def async_save(self):
         await self.store.async_save(self.data)
 
+    def find(self, collection: str, id_: str) -> Optional[dict]:
+        return next((item for item in self.data[collection] if item["id"] == id_), None)
+
+    def remove(self, collection: str, id_: str) -> bool:
+        item = self.find(collection, id_)
+        if item is None:
+            return False
+        self.data[collection].remove(item)
+        return True
+
     def get_kategorie(self, name: str) -> Optional[dict]:
         return next((k for k in self.data["kategorien"] if k["name"] == name), None)
+
+    def add_einkaufsliste_eintrag(
+        self, name: str, anzahl: float, einheit: str, kategorie: str = ""
+    ) -> None:
+        existing = next(
+            (
+                eintrag
+                for eintrag in self.data["einkaufsliste"]
+                if eintrag["name"] == name
+                and eintrag["einheit"] == einheit
+                and not eintrag["erledigt"]
+            ),
+            None,
+        )
+        if existing:
+            existing["anzahl"] = round(existing["anzahl"] + anzahl, 2)
+        else:
+            self.data["einkaufsliste"].append(
+                asdict(
+                    Einkaufslisteneintrag(
+                        id=str(uuid.uuid4()),
+                        name=name,
+                        anzahl=anzahl,
+                        einheit=einheit,
+                        kategorie=kategorie,
+                    )
+                )
+            )
 
     def add_zutaten_to_einkaufsliste(self, zutaten: List[Zutat]) -> None:
         for zutat in zutaten:
             kategorie = self.get_kategorie(zutat.kategorie)
             if not kategorie or not kategorie["autoeinkauf"]:
                 continue
-
-            existing = next(
-                (
-                    eintrag
-                    for eintrag in self.data["einkaufsliste"]
-                    if eintrag["name"] == zutat.name
-                    and eintrag["einheit"] == zutat.einheit
-                    and not eintrag["erledigt"]
-                ),
-                None,
-            )
-            if existing:
-                existing["anzahl"] = round(existing["anzahl"] + zutat.anzahl, 2)
-            else:
-                self.data["einkaufsliste"].append(
-                    asdict(
-                        Einkaufslisteneintrag(
-                            id=str(uuid.uuid4()),
-                            name=zutat.name,
-                            anzahl=zutat.anzahl,
-                            einheit=zutat.einheit,
-                            kategorie=zutat.kategorie,
-                        )
-                    )
-                )
+            self.add_einkaufsliste_eintrag(zutat.name, zutat.anzahl, zutat.einheit, zutat.kategorie)

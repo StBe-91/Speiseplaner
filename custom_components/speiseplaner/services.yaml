@@ -14,16 +14,73 @@ add_rezept:
           anzahl: 500
           einheit: "g"
           kategorie: "Fleisch"
+    rezeptanleitung:
+      example: "Zutaten schichten und 40 Minuten backen."
+
+update_rezept:
+  name: Rezept bearbeiten
+  fields:
+    rezept_id:
+      required: true
+      example: "uuid"
+    name:
+      required: true
+      example: "Lasagne"
+    portionen:
+      required: true
+      example: 4
+    zutaten:
+      required: true
+      example:
+        - name: "Hackfleisch"
+          anzahl: 500
+          einheit: "g"
+          kategorie: "Fleisch"
+    rezeptanleitung:
+      example: "Zutaten schichten und 40 Minuten backen."
+
+delete_rezept:
+  name: Rezept löschen
+  fields:
+    rezept_id:
+      required: true
+      example: "uuid"
 
 add_speiseplaneintrag:
   name: Eintrag zum Speiseplan hinzufügen
   fields:
     datum:
+      required: true
       example: "2026-07-20"
     rezept_id:
+      required: true
       example: "uuid"
     portionen:
+      required: true
       example: 4
+
+update_speiseplaneintrag:
+  name: Speiseplaneintrag bearbeiten
+  fields:
+    speiseplaneintrag_id:
+      required: true
+      example: "uuid"
+    datum:
+      required: true
+      example: "2026-07-20"
+    rezept_id:
+      required: true
+      example: "uuid"
+    portionen:
+      required: true
+      example: 4
+
+delete_speiseplaneintrag:
+  name: Speiseplaneintrag löschen
+  fields:
+    speiseplaneintrag_id:
+      required: true
+      example: "uuid"
 
 add_kategorie:
   name: Zutatenkategorie hinzufügen
@@ -32,5 +89,57 @@ add_kategorie:
       required: true
       example: "Fleisch"
     autoeinkauf:
+      required: true
+      example: true
+
+update_kategorie:
+  name: Zutatenkategorie bearbeiten
+  fields:
+    kategorie_id:
+      required: true
+      example: "uuid"
+    name:
+      required: true
+      example: "Fleisch"
+    autoeinkauf:
+      required: true
+      example: true
+
+delete_kategorie:
+  name: Zutatenkategorie löschen
+  fields:
+    kategorie_id:
+      required: true
+      example: "uuid"
+
+add_einkaufsliste_eintrag:
+  name: Einkaufslisteneintrag hinzufügen
+  fields:
+    name:
+      required: true
+      example: "Toilettenpapier"
+    anzahl:
+      required: true
+      example: 1
+    einheit:
+      required: true
+      example: "Packung"
+    kategorie:
+      example: "Drogerie"
+
+delete_einkaufsliste_eintrag:
+  name: Einkaufslisteneintrag löschen
+  fields:
+    einkaufslisteneintrag_id:
+      required: true
+      example: "uuid"
+
+set_einkaufsliste_erledigt:
+  name: Einkaufslisteneintrag abhaken
+  fields:
+    einkaufslisteneintrag_id:
+      required: true
+      example: "uuid"
+    erledigt:
       required: true
       example: true
