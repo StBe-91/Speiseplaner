@@ -1,7 +1,8 @@
 {
   "domain": "speiseplaner",
   "name": "Speiseplaner",
-  "version": "0.2.0",
+  "config_flow": true,
+  "version": "0.3.0",
   "documentation": "https://github.com/StBe-91/Speiseplaner",
   "issue_tracker": "https://github.com/StBe-91/Speiseplaner/issues",
   "requirements": [],

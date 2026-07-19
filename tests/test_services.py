@@ -3,24 +3,7 @@ from homeassistant.exceptions import ServiceValidationError
 
 from custom_components.speiseplaner.services import async_setup_services
 from custom_components.speiseplaner.storage import SpeiseplanerStorage
-
-
-class FakeServiceCall:
-    def __init__(self, data):
-        self.data = data
-
-
-class FakeServices:
-    def __init__(self):
-        self.registered = {}
-
-    def async_register(self, domain, service, handler, schema=None):
-        self.registered[service] = handler
-
-
-class FakeHass:
-    def __init__(self):
-        self.services = FakeServices()
+from helpers import FakeHass, FakeServiceCall
 
 
 def make_storage_mit_rezept():

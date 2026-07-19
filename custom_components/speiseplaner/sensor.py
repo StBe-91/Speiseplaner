@@ -1,21 +1,19 @@
 from homeassistant.helpers.entity import Entity
+
 from .const import DOMAIN
-from .models import Rezept, Zutat
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
-    pass
-
-
-async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
-    storage = hass.data[DOMAIN]["storage"]
-    async_add_entities([SpeiseplanSensor(storage)])
+    storage = hass.data[DOMAIN][entry.entry_id]
+    async_add_entities([SpeiseplanSensor(storage, entry.entry_id)])
 
 
 class SpeiseplanSensor(Entity):
-    def __init__(self, storage):
+    _attr_name = "Speiseplaner Today"
+
+    def __init__(self, storage, entry_id):
         self.storage = storage
-        self._attr_name = "Speiseplaner Today"
+        self._attr_unique_id = f"{entry_id}_today"
 
     @property
     def state(self):

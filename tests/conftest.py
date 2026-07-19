@@ -49,6 +49,7 @@ exceptions.ServiceValidationError = ServiceValidationError
 
 helpers = types.ModuleType("homeassistant.helpers")
 helpers_storage = types.ModuleType("homeassistant.helpers.storage")
+helpers_entity = types.ModuleType("homeassistant.helpers.entity")
 
 
 class Store:
@@ -64,14 +65,57 @@ class Store:
         pass
 
 
+class Entity:
+    pass
+
+
 helpers_storage.Store = Store
+helpers_entity.Entity = Entity
 helpers.storage = helpers_storage
+helpers.entity = helpers_entity
 homeassistant.core = core
 homeassistant.exceptions = exceptions
 homeassistant.helpers = helpers
+
+config_entries = types.ModuleType("homeassistant.config_entries")
+
+
+class ConfigEntry:
+    def __init__(self, entry_id="entry_id"):
+        self.entry_id = entry_id
+
+
+class ConfigFlow:
+    VERSION = 1
+
+    def __init_subclass__(cls, domain=None, **kwargs):
+        super().__init_subclass__(**kwargs)
+        cls.domain = domain
+
+    def __init__(self):
+        self.hass = None
+
+    def _async_current_entries(self):
+        return []
+
+    def async_show_form(self, step_id, data_schema=None):
+        return {"type": "form", "step_id": step_id}
+
+    def async_create_entry(self, title, data):
+        return {"type": "create_entry", "title": title, "data": data}
+
+    def async_abort(self, reason):
+        return {"type": "abort", "reason": reason}
+
+
+config_entries.ConfigEntry = ConfigEntry
+config_entries.ConfigFlow = ConfigFlow
+homeassistant.config_entries = config_entries
 
 sys.modules.setdefault("homeassistant", homeassistant)
 sys.modules.setdefault("homeassistant.core", core)
 sys.modules.setdefault("homeassistant.exceptions", exceptions)
 sys.modules.setdefault("homeassistant.helpers", helpers)
 sys.modules.setdefault("homeassistant.helpers.storage", helpers_storage)
+sys.modules.setdefault("homeassistant.helpers.entity", helpers_entity)
+sys.modules.setdefault("homeassistant.config_entries", config_entries)
