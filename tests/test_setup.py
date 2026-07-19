@@ -15,6 +15,16 @@ async def test_async_setup_entry_initialisiert_storage_und_services():
     assert "entry1" in hass.data[DOMAIN]
     assert "add_rezept" in hass.services.registered
     assert hass.config_entries.forwarded == [(entry, PLATFORMS)]
+    assert len(hass.http.registered_static_paths) == 1
+
+
+async def test_async_setup_entry_registriert_frontend_nur_einmal():
+    hass = FakeHass()
+
+    await async_setup_entry(hass, ConfigEntry(entry_id="entry1"))
+    await async_setup_entry(hass, ConfigEntry(entry_id="entry1"))  # simuliert einen Reload
+
+    assert len(hass.http.registered_static_paths) == 1
 
 
 async def test_async_unload_entry_entfernt_storage_bei_erfolg():

@@ -2,14 +2,16 @@ import uuid
 from dataclasses import asdict
 from typing import List, Optional
 
+from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.storage import Store
 
-from .const import STORAGE_KEY, STORAGE_VERSION
+from .const import SIGNAL_UPDATE, STORAGE_KEY, STORAGE_VERSION
 from .models import Einkaufslisteneintrag, Zutat
 
 
 class SpeiseplanerStorage:
     def __init__(self, hass):
+        self.hass = hass
         self.store = Store(hass, STORAGE_VERSION, STORAGE_KEY)
         self.data = {"rezepte": [], "speiseplan": [], "kategorien": [], "einkaufsliste": []}
 
@@ -21,6 +23,7 @@ class SpeiseplanerStorage:
 
     async def async_save(self):
         await self.store.async_save(self.data)
+        async_dispatcher_send(self.hass, SIGNAL_UPDATE)
 
     def find(self, collection: str, id_: str) -> Optional[dict]:
         return next((item for item in self.data[collection] if item["id"] == id_), None)

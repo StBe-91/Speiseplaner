@@ -25,8 +25,17 @@ class FakeConfigEntries:
         return self.unload_result
 
 
+class FakeHttp:
+    def __init__(self):
+        self.registered_static_paths = []
+
+    async def async_register_static_paths(self, configs):
+        self.registered_static_paths.extend(configs)
+
+
 class FakeHass:
     def __init__(self):
         self.services = FakeServices()
         self.config_entries = FakeConfigEntries()
+        self.http = FakeHttp()
         self.data = {}

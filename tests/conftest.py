@@ -10,6 +10,7 @@ unterstützte Python-Version verfügbar ist, sollte hier stattdessen
 pytest-homeassistant-custom-component verwendet werden.
 """
 
+import enum
 import sys
 import types
 from pathlib import Path
@@ -30,8 +31,13 @@ class ServiceCall:
         self.data = data or {}
 
 
+def callback(func):
+    return func
+
+
 core.HomeAssistant = HomeAssistant
 core.ServiceCall = ServiceCall
+core.callback = callback
 
 exceptions = types.ModuleType("homeassistant.exceptions")
 
@@ -66,16 +72,172 @@ class Store:
 
 
 class Entity:
-    pass
+    _attr_should_poll = True
+
+    @property
+    def should_poll(self):
+        return self._attr_should_poll
+
+    def async_write_ha_state(self):
+        pass
+
+    def async_on_remove(self, func):
+        pass
+
+
+def DeviceInfo(**kwargs):
+    return dict(kwargs)
 
 
 helpers_storage.Store = Store
 helpers_entity.Entity = Entity
+helpers_entity.DeviceInfo = DeviceInfo
 helpers.storage = helpers_storage
 helpers.entity = helpers_entity
 homeassistant.core = core
 homeassistant.exceptions = exceptions
 homeassistant.helpers = helpers
+
+helpers_dispatcher = types.ModuleType("homeassistant.helpers.dispatcher")
+
+
+def async_dispatcher_connect(hass, signal, target):
+    return lambda: None
+
+
+def async_dispatcher_send(hass, signal, *args):
+    pass
+
+
+helpers_dispatcher.async_dispatcher_connect = async_dispatcher_connect
+helpers_dispatcher.async_dispatcher_send = async_dispatcher_send
+helpers.dispatcher = helpers_dispatcher
+
+components = types.ModuleType("homeassistant.components")
+
+sensor_module = types.ModuleType("homeassistant.components.sensor")
+
+
+class SensorEntity(Entity):
+    pass
+
+
+sensor_module.SensorEntity = SensorEntity
+
+calendar_module = types.ModuleType("homeassistant.components.calendar")
+
+
+class CalendarEvent:
+    def __init__(self, start, end, summary, description=None, uid=None, location=None):
+        self.start = start
+        self.end = end
+        self.summary = summary
+        self.description = description
+        self.uid = uid
+        self.location = location
+
+
+class CalendarEntity(Entity):
+    pass
+
+
+calendar_module.CalendarEvent = CalendarEvent
+calendar_module.CalendarEntity = CalendarEntity
+
+todo_module = types.ModuleType("homeassistant.components.todo")
+
+
+class TodoItemStatus(str, enum.Enum):
+    NEEDS_ACTION = "needs_action"
+    COMPLETED = "completed"
+
+
+class TodoItem:
+    def __init__(self, summary=None, uid=None, status=None, description=None, due=None):
+        self.summary = summary
+        self.uid = uid
+        self.status = status
+        self.description = description
+        self.due = due
+
+
+class TodoListEntityFeature(enum.IntFlag):
+    CREATE_TODO_ITEM = 1
+    DELETE_TODO_ITEM = 2
+    UPDATE_TODO_ITEM = 4
+
+
+class TodoListEntity(Entity):
+    pass
+
+
+todo_module.TodoItem = TodoItem
+todo_module.TodoItemStatus = TodoItemStatus
+todo_module.TodoListEntityFeature = TodoListEntityFeature
+todo_module.TodoListEntity = TodoListEntity
+
+websocket_api_module = types.ModuleType("homeassistant.components.websocket_api")
+
+
+def websocket_command(schema):
+    def decorator(func):
+        func._ws_schema = schema
+        return func
+
+    return decorator
+
+
+_registered_ws_commands = []
+
+
+def async_register_command(hass, handler):
+    _registered_ws_commands.append(handler)
+
+
+class WebSocketConnection:
+    def __init__(self):
+        self.sent = []
+
+    def send_result(self, msg_id, result=None):
+        self.sent.append((msg_id, result))
+
+
+websocket_api_module.websocket_command = websocket_command
+websocket_api_module.async_register_command = async_register_command
+websocket_api_module.ActiveConnection = WebSocketConnection
+
+http_module = types.ModuleType("homeassistant.components.http")
+
+
+class StaticPathConfig:
+    def __init__(self, url_path, path, cache_headers=True):
+        self.url_path = url_path
+        self.path = path
+        self.cache_headers = cache_headers
+
+
+http_module.StaticPathConfig = StaticPathConfig
+
+components.sensor = sensor_module
+components.calendar = calendar_module
+components.todo = todo_module
+components.websocket_api = websocket_api_module
+components.http = http_module
+homeassistant.components = components
+
+voluptuous = types.ModuleType("voluptuous")
+
+
+def Required(key, **kwargs):
+    return key
+
+
+def Optional(key, **kwargs):
+    return key
+
+
+voluptuous.Required = Required
+voluptuous.Optional = Optional
 
 config_entries = types.ModuleType("homeassistant.config_entries")
 
@@ -118,4 +280,12 @@ sys.modules.setdefault("homeassistant.exceptions", exceptions)
 sys.modules.setdefault("homeassistant.helpers", helpers)
 sys.modules.setdefault("homeassistant.helpers.storage", helpers_storage)
 sys.modules.setdefault("homeassistant.helpers.entity", helpers_entity)
+sys.modules.setdefault("homeassistant.helpers.dispatcher", helpers_dispatcher)
 sys.modules.setdefault("homeassistant.config_entries", config_entries)
+sys.modules.setdefault("homeassistant.components", components)
+sys.modules.setdefault("homeassistant.components.sensor", sensor_module)
+sys.modules.setdefault("homeassistant.components.calendar", calendar_module)
+sys.modules.setdefault("homeassistant.components.todo", todo_module)
+sys.modules.setdefault("homeassistant.components.websocket_api", websocket_api_module)
+sys.modules.setdefault("homeassistant.components.http", http_module)
+sys.modules.setdefault("voluptuous", voluptuous)
