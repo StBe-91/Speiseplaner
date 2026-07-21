@@ -1,9 +1,12 @@
 {
   "config": {
     "step": {
-      "user": {
-        "title": "Speiseplaner einrichten",
-        "description": "Speiseplaner verwaltet Rezepte, Speiseplan und Einkaufsliste lokal in Home Assistant. Es sind keine weiteren Angaben nötig."
+      "kategorien": {
+        "title": "Kategorien auswählen",
+        "description": "Wähle aus, welche Standard-Kategorien für die Einkaufsliste angelegt werden sollen. Weitere eigene Kategorien lassen sich später jederzeit hinzufügen.",
+        "data": {
+          "kategorien": "Kategorien"
+        }
       }
     },
     "abort": {

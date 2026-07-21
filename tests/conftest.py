@@ -236,8 +236,32 @@ def Optional(key, **kwargs):
     return key
 
 
+class Schema:
+    def __init__(self, schema, *args, **kwargs):
+        self.schema = schema
+
+
 voluptuous.Required = Required
 voluptuous.Optional = Optional
+voluptuous.Schema = Schema
+
+helpers_config_validation = types.ModuleType("homeassistant.helpers.config_validation")
+
+
+def multi_select(options):
+    def validator(selected):
+        if not isinstance(selected, list):
+            raise ValueError("multi_select erwartet eine Liste")
+        for item in selected:
+            if item not in options:
+                raise ValueError(f"{item} ist keine gültige Option")
+        return selected
+
+    return validator
+
+
+helpers_config_validation.multi_select = multi_select
+helpers.config_validation = helpers_config_validation
 
 config_entries = types.ModuleType("homeassistant.config_entries")
 
@@ -261,7 +285,7 @@ class ConfigFlow:
         return []
 
     def async_show_form(self, step_id, data_schema=None):
-        return {"type": "form", "step_id": step_id}
+        return {"type": "form", "step_id": step_id, "data_schema": data_schema}
 
     def async_create_entry(self, title, data):
         return {"type": "create_entry", "title": title, "data": data}
@@ -281,6 +305,7 @@ sys.modules.setdefault("homeassistant.helpers", helpers)
 sys.modules.setdefault("homeassistant.helpers.storage", helpers_storage)
 sys.modules.setdefault("homeassistant.helpers.entity", helpers_entity)
 sys.modules.setdefault("homeassistant.helpers.dispatcher", helpers_dispatcher)
+sys.modules.setdefault("homeassistant.helpers.config_validation", helpers_config_validation)
 sys.modules.setdefault("homeassistant.config_entries", config_entries)
 sys.modules.setdefault("homeassistant.components", components)
 sys.modules.setdefault("homeassistant.components.sensor", sensor_module)
