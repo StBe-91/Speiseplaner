@@ -241,9 +241,19 @@ class Schema:
         self.schema = schema
 
 
+def In(container):
+    def validator(value):
+        if value not in container:
+            raise ValueError(f"{value} ist keine gültige Option")
+        return value
+
+    return validator
+
+
 voluptuous.Required = Required
 voluptuous.Optional = Optional
 voluptuous.Schema = Schema
+voluptuous.In = In
 
 helpers_config_validation = types.ModuleType("homeassistant.helpers.config_validation")
 

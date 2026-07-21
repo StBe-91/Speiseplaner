@@ -3,7 +3,7 @@
     "step": {
       "kategorien": {
         "title": "Kategorien auswählen",
-        "description": "Wähle aus, welche Standard-Kategorien für die Einkaufsliste angelegt werden sollen. Weitere eigene Kategorien lassen sich später jederzeit hinzufügen.",
+        "description": "Wähle aus, welche Standard-Kategorien für die Einkaufsliste angelegt werden sollen. Weitere eigene Kategorien lassen sich später jederzeit über die Konfiguration hinzufügen.",
         "data": {
           "kategorien": "Kategorien"
         }
@@ -18,25 +18,44 @@
       "init": {
         "title": "Speiseplaner konfigurieren",
         "menu_options": {
-          "kategorien": "Standard-Kategorien verwalten",
-          "eigene_kategorie": "Eigene Kategorie hinzufügen"
+          "kategorie_hinzufuegen": "Kategorie hinzufügen",
+          "kategorie_bearbeiten": "Kategorie umbenennen",
+          "kategorie_loeschen": "Kategorie löschen"
         }
       },
-      "kategorien": {
-        "title": "Standard-Kategorien verwalten",
-        "description": "Aktiviere oder deaktiviere Standard-Kategorien. Eigene, selbst angelegte Kategorien bleiben davon unberührt.",
-        "data": {
-          "kategorien": "Aktive Standard-Kategorien"
-        }
-      },
-      "eigene_kategorie": {
-        "title": "Eigene Kategorie hinzufügen",
-        "description": "Lege eine zusätzliche Kategorie an, die nicht in der Standardauswahl enthalten ist.",
+      "kategorie_hinzufuegen": {
+        "title": "Kategorie hinzufügen",
+        "description": "Lege eine neue Kategorie an.",
         "data": {
           "name": "Name",
           "autoeinkauf": "Automatisch auf die Einkaufsliste setzen"
         }
+      },
+      "kategorie_bearbeiten": {
+        "title": "Kategorie auswählen",
+        "description": "Welche Kategorie soll umbenannt werden?",
+        "data": {
+          "kategorie_id": "Kategorie"
+        }
+      },
+      "kategorie_bearbeiten_formular": {
+        "title": "Kategorie bearbeiten",
+        "description": "Name und Einkaufslisten-Verhalten anpassen.",
+        "data": {
+          "name": "Name",
+          "autoeinkauf": "Automatisch auf die Einkaufsliste setzen"
+        }
+      },
+      "kategorie_loeschen": {
+        "title": "Kategorien löschen",
+        "description": "Wähle die zu löschenden Kategorien aus.",
+        "data": {
+          "kategorien": "Zu löschende Kategorien"
+        }
       }
+    },
+    "abort": {
+      "keine_kategorien": "Es sind noch keine Kategorien vorhanden."
     }
   }
 }

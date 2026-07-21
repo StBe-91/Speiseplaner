@@ -103,7 +103,6 @@ class SpeiseplanerCard extends HTMLElement {
           ${this._tabButton("speiseplan", "Speiseplan")}
           ${this._tabButton("rezepte", "Rezepte")}
           ${this._tabButton("einkaufsliste", "Einkaufsliste")}
-          ${this._tabButton("kategorien", "Kategorien")}
         </div>
         ${this._error ? `<div class="error">${this._escape(this._error)}</div>` : ""}
         <div class="content">
@@ -125,8 +124,6 @@ class SpeiseplanerCard extends HTMLElement {
         return this._renderRezepte();
       case "einkaufsliste":
         return this._renderEinkaufsliste();
-      case "kategorien":
-        return this._renderKategorien();
       default:
         return this._renderSpeiseplan();
     }
@@ -223,30 +220,6 @@ class SpeiseplanerCard extends HTMLElement {
           ${kategorieOptionen}
         </select>
       </div>
-    `;
-  }
-
-  _renderKategorien() {
-    const zeilen =
-      this._data.kategorien
-        .map(
-          (k) => `
-          <li>
-            <span>${this._escape(k.name)} ${k.autoeinkauf ? "🛒" : ""}</span>
-            <button data-action="delete_kategorie" data-id="${k.id}" title="Löschen">✕</button>
-          </li>`
-        )
-        .join("") || `<li class="empty">Noch keine Kategorien.</li>`;
-
-    return `
-      <form data-form="kategorie">
-        <div class="row">
-          <input type="text" name="name" placeholder="Name" required>
-          <label><input type="checkbox" name="autoeinkauf" checked> Automatisch auf Einkaufsliste</label>
-          <button type="submit">Hinzufügen</button>
-        </div>
-      </form>
-      <ul class="list">${zeilen}</ul>
     `;
   }
 
@@ -393,14 +366,6 @@ class SpeiseplanerCard extends HTMLElement {
       };
     });
 
-    this._bindForm(root, "kategorie", (data) => ({
-      service: "add_kategorie",
-      payload: {
-        name: data.get("name"),
-        autoeinkauf: data.get("autoeinkauf") === "on",
-      },
-    }));
-
     this._bindForm(root, "einkaufsliste_eintrag", (data) => ({
       service: "add_einkaufsliste_eintrag",
       payload: {
@@ -442,7 +407,6 @@ class SpeiseplanerCard extends HTMLElement {
         data: { speiseplaneintrag_id: id },
       },
       delete_rezept: { service: "delete_rezept", data: { rezept_id: id } },
-      delete_kategorie: { service: "delete_kategorie", data: { kategorie_id: id } },
       delete_einkaufsliste_eintrag: {
         service: "delete_einkaufsliste_eintrag",
         data: { einkaufslisteneintrag_id: id },

@@ -33,10 +33,13 @@ class SpeiseplanerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             await self._async_seed_kategorien(user_input.get("kategorien", []))
             return self.async_create_entry(title="Speiseplaner", data={})
 
-        return self.async_show_form(
-            step_id="kategorien",
-            data_schema=_kategorien_schema(vorausgewaehlt=list(DEFAULT_KATEGORIE_IDS)),
+        optionen = {k["id"]: k["name"] for k in DEFAULT_KATEGORIEN}
+        schema = vol.Schema(
+            {
+                vol.Optional("kategorien", default=list(optionen)): cv.multi_select(optionen),
+            }
         )
+        return self.async_show_form(step_id="kategorien", data_schema=schema)
 
     async def _async_seed_kategorien(self, ausgewaehlte_ids: List[str]) -> None:
         self._storage = SpeiseplanerStorage(self.hass)
@@ -52,23 +55,37 @@ class SpeiseplanerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 class SpeiseplanerOptionsFlow(config_entries.OptionsFlow):
     """Options-Flow des Speiseplaners.
 
-    Struktur für zukünftige Erweiterungen: async_step_init zeigt ein Menü an.
-    Neuen Options-Bereich hinzufügen:
+    Kategorien werden hier unabhängig von ihrer Herkunft (Standard-Auswahl bei
+    der Einrichtung oder frei angelegt) einheitlich verwaltet - es gibt danach
+    keinen Unterschied mehr zwischen beiden.
+
+    Struktur für zukünftige, weitere Options-Bereiche: async_step_init zeigt
+    ein Menü. Neuen Bereich hinzufügen:
       1. Eintrag (id + Bezeichnung) in menu_options und in strings.json/
          translations/*.json unter options.step.init.menu_options ergänzen.
-      2. Eine Methode async_step_<id> ergänzen, die ein Formular zeigt und
-         mit self.async_create_entry(title="", data={}) abschließt.
-    Mehr Vorwissen ist dafür nicht nötig - die Menü-Navigation läuft automatisch.
+      2. Eine oder mehrere Methoden async_step_<id> ergänzen, die ein
+         Formular zeigen; zum Abschluss entweder self.async_create_entry(...)
+         (schließt den Dialog) oder return await self.async_step_init()
+         (zurück zum Menü, für mehrere Aktionen in einer Sitzung).
+    Mehr Vorwissen ist dafür nicht nötig.
     """
+
+    def _storage(self):
+        return self.hass.data[DOMAIN][self.config_entry.entry_id]
 
     async def async_step_init(self, user_input=None):
         return self.async_show_menu(
-            step_id="init", menu_options=["kategorien", "eigene_kategorie"]
+            step_id="init",
+            menu_options=[
+                "kategorie_hinzufuegen",
+                "kategorie_bearbeiten",
+                "kategorie_loeschen",
+            ],
         )
 
-    async def async_step_eigene_kategorie(self, user_input=None):
+    async def async_step_kategorie_hinzufuegen(self, user_input=None):
         if user_input is not None:
-            storage = self.hass.data[DOMAIN][self.config_entry.entry_id]
+            storage = self._storage()
             storage.data["kategorien"].append(
                 {
                     "id": str(uuid.uuid4()),
@@ -77,7 +94,7 @@ class SpeiseplanerOptionsFlow(config_entries.OptionsFlow):
                 }
             )
             await storage.async_save()
-            return self.async_create_entry(title="", data={})
+            return await self.async_step_init()
 
         schema = vol.Schema(
             {
@@ -85,38 +102,54 @@ class SpeiseplanerOptionsFlow(config_entries.OptionsFlow):
                 vol.Optional("autoeinkauf", default=True): bool,
             }
         )
-        return self.async_show_form(step_id="eigene_kategorie", data_schema=schema)
+        return self.async_show_form(step_id="kategorie_hinzufuegen", data_schema=schema)
 
-    async def async_step_kategorien(self, user_input=None):
-        storage = self.hass.data[DOMAIN][self.config_entry.entry_id]
+    async def async_step_kategorie_bearbeiten(self, user_input=None):
+        storage = self._storage()
+        if not storage.data["kategorien"]:
+            return self.async_abort(reason="keine_kategorien")
 
         if user_input is not None:
-            ausgewaehlt = set(user_input.get("kategorien", []))
-            aktuelle = {
-                k["id"] for k in storage.data["kategorien"] if k["id"] in DEFAULT_KATEGORIE_IDS
-            }
-            for kategorie in DEFAULT_KATEGORIEN:
-                kategorie_id = kategorie["id"]
-                if kategorie_id in ausgewaehlt and kategorie_id not in aktuelle:
-                    storage.data["kategorien"].append(dict(kategorie))
-                elif kategorie_id not in ausgewaehlt and kategorie_id in aktuelle:
-                    storage.remove("kategorien", kategorie_id)
-            await storage.async_save()
-            return self.async_create_entry(title="", data={})
+            self._bearbeite_id = user_input["kategorie_id"]
+            return await self.async_step_kategorie_bearbeiten_formular()
 
-        aktuelle = [
-            k["id"] for k in storage.data["kategorien"] if k["id"] in DEFAULT_KATEGORIE_IDS
-        ]
+        optionen = {k["id"]: k["name"] for k in storage.data["kategorien"]}
+        schema = vol.Schema({vol.Required("kategorie_id"): vol.In(optionen)})
+        return self.async_show_form(step_id="kategorie_bearbeiten", data_schema=schema)
+
+    async def async_step_kategorie_bearbeiten_formular(self, user_input=None):
+        storage = self._storage()
+        kategorie = storage.find("kategorien", self._bearbeite_id)
+
+        if user_input is not None:
+            kategorie["name"] = user_input["name"]
+            kategorie["autoeinkauf"] = user_input["autoeinkauf"]
+            await storage.async_save()
+            return await self.async_step_init()
+
+        schema = vol.Schema(
+            {
+                vol.Required("name", default=kategorie["name"]): str,
+                vol.Optional("autoeinkauf", default=kategorie["autoeinkauf"]): bool,
+            }
+        )
         return self.async_show_form(
-            step_id="kategorien",
-            data_schema=_kategorien_schema(vorausgewaehlt=aktuelle),
+            step_id="kategorie_bearbeiten_formular", data_schema=schema
         )
 
+    async def async_step_kategorie_loeschen(self, user_input=None):
+        storage = self._storage()
+        if not storage.data["kategorien"]:
+            return self.async_abort(reason="keine_kategorien")
 
-def _kategorien_schema(vorausgewaehlt: List[str]) -> vol.Schema:
-    optionen = {k["id"]: k["name"] for k in DEFAULT_KATEGORIEN}
-    return vol.Schema(
-        {
-            vol.Optional("kategorien", default=vorausgewaehlt): cv.multi_select(optionen),
-        }
-    )
+        if user_input is not None:
+            for kategorie_id in user_input.get("kategorien", []):
+                storage.remove("kategorien", kategorie_id)
+            await storage.async_save()
+            return await self.async_step_init()
+
+        optionen = {k["id"]: k["name"] for k in storage.data["kategorien"]}
+        schema = vol.Schema(
+            {vol.Optional("kategorien", default=[]): cv.multi_select(optionen)}
+        )
+        return self.async_show_form(step_id="kategorie_loeschen", data_schema=schema)
