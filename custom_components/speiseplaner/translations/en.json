@@ -18,7 +18,8 @@
       "init": {
         "title": "Speiseplaner konfigurieren",
         "menu_options": {
-          "kategorien": "Kategorien verwalten"
+          "kategorien": "Standard-Kategorien verwalten",
+          "eigene_kategorie": "Eigene Kategorie hinzufügen"
         }
       },
       "kategorien": {
@@ -26,6 +27,14 @@
         "description": "Aktiviere oder deaktiviere Standard-Kategorien. Eigene, selbst angelegte Kategorien bleiben davon unberührt.",
         "data": {
           "kategorien": "Aktive Standard-Kategorien"
+        }
+      },
+      "eigene_kategorie": {
+        "title": "Eigene Kategorie hinzufügen",
+        "description": "Lege eine zusätzliche Kategorie an, die nicht in der Standardauswahl enthalten ist.",
+        "data": {
+          "name": "Name",
+          "autoeinkauf": "Automatisch auf die Einkaufsliste setzen"
         }
       }
     }

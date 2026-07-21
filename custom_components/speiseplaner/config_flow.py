@@ -1,3 +1,4 @@
+import uuid
 from typing import List
 
 import voluptuous as vol
@@ -61,7 +62,30 @@ class SpeiseplanerOptionsFlow(config_entries.OptionsFlow):
     """
 
     async def async_step_init(self, user_input=None):
-        return self.async_show_menu(step_id="init", menu_options=["kategorien"])
+        return self.async_show_menu(
+            step_id="init", menu_options=["kategorien", "eigene_kategorie"]
+        )
+
+    async def async_step_eigene_kategorie(self, user_input=None):
+        if user_input is not None:
+            storage = self.hass.data[DOMAIN][self.config_entry.entry_id]
+            storage.data["kategorien"].append(
+                {
+                    "id": str(uuid.uuid4()),
+                    "name": user_input["name"],
+                    "autoeinkauf": user_input["autoeinkauf"],
+                }
+            )
+            await storage.async_save()
+            return self.async_create_entry(title="", data={})
+
+        schema = vol.Schema(
+            {
+                vol.Required("name"): str,
+                vol.Optional("autoeinkauf", default=True): bool,
+            }
+        )
+        return self.async_show_form(step_id="eigene_kategorie", data_schema=schema)
 
     async def async_step_kategorien(self, user_input=None):
         storage = self.hass.data[DOMAIN][self.config_entry.entry_id]

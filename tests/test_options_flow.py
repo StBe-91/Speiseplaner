@@ -33,6 +33,7 @@ async def test_init_schritt_zeigt_menue_mit_kategorien():
     assert result["type"] == "menu"
     assert result["step_id"] == "init"
     assert "kategorien" in result["menu_options"]
+    assert "eigene_kategorie" in result["menu_options"]
 
 
 async def test_kategorien_schritt_zeigt_formular_ohne_eingabe():
@@ -83,3 +84,39 @@ async def test_kategorien_schritt_laesst_eigene_kategorien_unangetastet():
     assert result["type"] == "create_entry"
     ids = {k["id"] for k in storage.data["kategorien"]}
     assert ids == {"eigene-uuid"}
+
+
+async def test_eigene_kategorie_schritt_zeigt_formular_ohne_eingabe():
+    flow, _ = make_options_flow()
+
+    result = await flow.async_step_eigene_kategorie()
+
+    assert result["type"] == "form"
+    assert result["step_id"] == "eigene_kategorie"
+    assert result["data_schema"] is not None
+
+
+async def test_eigene_kategorie_schritt_legt_neue_kategorie_an():
+    flow, storage = make_options_flow(
+        kategorien=[{"id": "getraenke", "name": "🥤 Getränke", "autoeinkauf": True}]
+    )
+
+    result = await flow.async_step_eigene_kategorie(
+        user_input={"name": "Grillzubehör", "autoeinkauf": False}
+    )
+
+    assert result["type"] == "create_entry"
+    assert len(storage.data["kategorien"]) == 2
+    neue = next(k for k in storage.data["kategorien"] if k["name"] == "Grillzubehör")
+    assert neue["autoeinkauf"] is False
+    assert neue["id"]  # eine generierte id ist vorhanden
+
+
+async def test_eigene_kategorie_schritt_vergibt_eindeutige_ids():
+    flow, storage = make_options_flow(kategorien=[])
+
+    await flow.async_step_eigene_kategorie(user_input={"name": "Erste", "autoeinkauf": True})
+    await flow.async_step_eigene_kategorie(user_input={"name": "Zweite", "autoeinkauf": True})
+
+    ids = [k["id"] for k in storage.data["kategorien"]]
+    assert len(ids) == len(set(ids)) == 2
