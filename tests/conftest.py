@@ -271,7 +271,21 @@ class ConfigEntry:
         self.entry_id = entry_id
 
 
-class ConfigFlow:
+class _FlowHandlerBase:
+    def async_show_form(self, step_id, data_schema=None):
+        return {"type": "form", "step_id": step_id, "data_schema": data_schema}
+
+    def async_show_menu(self, step_id, menu_options):
+        return {"type": "menu", "step_id": step_id, "menu_options": menu_options}
+
+    def async_create_entry(self, title, data):
+        return {"type": "create_entry", "title": title, "data": data}
+
+    def async_abort(self, reason):
+        return {"type": "abort", "reason": reason}
+
+
+class ConfigFlow(_FlowHandlerBase):
     VERSION = 1
 
     def __init_subclass__(cls, domain=None, **kwargs):
@@ -284,18 +298,16 @@ class ConfigFlow:
     def _async_current_entries(self):
         return []
 
-    def async_show_form(self, step_id, data_schema=None):
-        return {"type": "form", "step_id": step_id, "data_schema": data_schema}
 
-    def async_create_entry(self, title, data):
-        return {"type": "create_entry", "title": title, "data": data}
-
-    def async_abort(self, reason):
-        return {"type": "abort", "reason": reason}
+class OptionsFlow(_FlowHandlerBase):
+    def __init__(self):
+        self.hass = None
+        self.config_entry = None
 
 
 config_entries.ConfigEntry = ConfigEntry
 config_entries.ConfigFlow = ConfigFlow
+config_entries.OptionsFlow = OptionsFlow
 homeassistant.config_entries = config_entries
 
 sys.modules.setdefault("homeassistant", homeassistant)
