@@ -1,11 +1,10 @@
-class SpeiseplanerCard extends HTMLElement {
+class SpeiseplanerBaseCard extends HTMLElement {
   static getStubConfig() {
     return {};
   }
 
   setConfig(config) {
     this._config = config || {};
-    this._activeTab = this._activeTab || "speiseplan";
     this._ensureShadowRoot();
     this._render();
   }
@@ -25,7 +24,7 @@ class SpeiseplanerCard extends HTMLElement {
   }
 
   getCardSize() {
-    return 10;
+    return 6;
   }
 
   _ensureShadowRoot() {
@@ -81,9 +80,29 @@ class SpeiseplanerCard extends HTMLElement {
     }
   }
 
-  _switchTab(tab) {
-    this._activeTab = tab;
-    this._render();
+  _escape(value) {
+    const div = document.createElement("div");
+    div.textContent = value ?? "";
+    return div.innerHTML;
+  }
+
+  _bindForm(root, name, buildCall) {
+    const form = root.querySelector(`form[data-form='${name}']`);
+    if (!form) return;
+    form.addEventListener("submit", (ev) => {
+      ev.preventDefault();
+      const data = new FormData(form);
+      const { service, payload } = buildCall(data, form);
+      this._callService(service, payload);
+    });
+  }
+
+  _bindDeleteButtons(root, action, service, idField) {
+    root.querySelectorAll(`button[data-action='${action}']`).forEach((btn) => {
+      btn.addEventListener("click", () =>
+        this._callService(service, { [idField]: btn.dataset.id })
+      );
+    });
   }
 
   _render() {
@@ -92,41 +111,78 @@ class SpeiseplanerCard extends HTMLElement {
     if (!this._data) {
       this.shadowRoot.innerHTML =
         this._baseStyles() +
-        `<ha-card header="Speiseplaner"><div class="content">Lade…</div></ha-card>`;
+        `<ha-card header="${this._cardTitle()}"><div class="content">Lade…</div></ha-card>`;
       return;
     }
 
     this.shadowRoot.innerHTML =
       this._baseStyles() +
-      `<ha-card>
-        <div class="tabs">
-          ${this._tabButton("speiseplan", "Speiseplan")}
-          ${this._tabButton("rezepte", "Rezepte")}
-          ${this._tabButton("einkaufsliste", "Einkaufsliste")}
-        </div>
+      `<ha-card header="${this._cardTitle()}">
         ${this._error ? `<div class="error">${this._escape(this._error)}</div>` : ""}
         <div class="content">
-          ${this._renderTab()}
+          ${this._renderContent()}
         </div>
       </ha-card>`;
 
-    this._attachListeners();
+    this._attachListeners(this.shadowRoot);
   }
 
-  _tabButton(id, label) {
-    const active = this._activeTab === id ? "active" : "";
-    return `<button class="tab ${active}" data-tab="${id}">${label}</button>`;
+  _cardTitle() {
+    return "Speiseplaner";
   }
 
-  _renderTab() {
-    switch (this._activeTab) {
-      case "rezepte":
-        return this._renderRezepte();
-      case "einkaufsliste":
-        return this._renderEinkaufsliste();
-      default:
-        return this._renderSpeiseplan();
-    }
+  _renderContent() {
+    return "";
+  }
+
+  _attachListeners(_root) {}
+
+  _baseStyles() {
+    return `<style>
+      :host { display: block; }
+      .content { padding: 8px 16px 16px; }
+      form { margin-bottom: 12px; }
+      .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 8px; }
+      input, select, textarea, button {
+        font: inherit; color: var(--primary-text-color);
+        background: var(--card-background-color, #fff);
+        border: 1px solid var(--divider-color, #ccc); border-radius: 4px; padding: 6px 8px;
+      }
+      textarea { width: 100%; min-height: 60px; box-sizing: border-box; }
+      button[type="submit"], button[data-action] { cursor: pointer; }
+      button[data-action="add_zutat_row"] { margin: 4px 0 8px; }
+      .zutat-row { display: flex; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; }
+      ul.list { list-style: none; margin: 0; padding: 0; }
+      ul.list li {
+        display: flex; justify-content: space-between; align-items: center;
+        padding: 6px 0; border-bottom: 1px solid var(--divider-color, #eee);
+        gap: 8px;
+      }
+      ul.list li.empty, p.empty { color: var(--secondary-text-color); border-bottom: none; }
+      .zutaten-liste { font-size: 12px; color: var(--secondary-text-color); }
+      details.gruppe { margin-bottom: 8px; }
+      details.gruppe summary {
+        cursor: pointer; font-weight: 500; padding: 6px 0;
+        color: var(--primary-text-color);
+      }
+      details.erledigt summary { color: var(--secondary-text-color); }
+      .error {
+        margin: 0 16px; padding: 8px; border-radius: 4px;
+        background: var(--error-color, #db4437); color: white;
+      }
+      button[data-action^="delete"] {
+        background: none; border: none; color: var(--secondary-text-color);
+        font-size: 16px; padding: 0 4px;
+      }
+    </style>`;
+  }
+}
+
+// -- Speiseplan-Karte -------------------------------------------------------
+
+class SpeiseplanerSpeiseplanCard extends SpeiseplanerBaseCard {
+  _cardTitle() {
+    return "Speiseplan";
   }
 
   _rezeptName(id) {
@@ -134,7 +190,7 @@ class SpeiseplanerCard extends HTMLElement {
     return rezept ? rezept.name : "Unbekanntes Rezept";
   }
 
-  _renderSpeiseplan() {
+  _renderContent() {
     const eintraege = [...this._data.speiseplan].sort((a, b) =>
       a.datum.localeCompare(b.datum)
     );
@@ -171,7 +227,33 @@ class SpeiseplanerCard extends HTMLElement {
     `;
   }
 
-  _renderRezepte() {
+  _attachListeners(root) {
+    this._bindDeleteButtons(
+      root,
+      "delete_speiseplaneintrag",
+      "delete_speiseplaneintrag",
+      "speiseplaneintrag_id"
+    );
+
+    this._bindForm(root, "speiseplaneintrag", (data) => ({
+      service: "add_speiseplaneintrag",
+      payload: {
+        datum: data.get("datum"),
+        rezept_id: data.get("rezept_id"),
+        portionen: Number(data.get("portionen")),
+      },
+    }));
+  }
+}
+
+// -- Rezepte-Karte ------------------------------------------------------
+
+class SpeiseplanerRezepteCard extends SpeiseplanerBaseCard {
+  _cardTitle() {
+    return "Rezepte";
+  }
+
+  _renderContent() {
     const kategorieOptionen = this._data.kategorien
       .map((k) => `<option value="${this._escape(k.name)}">${this._escape(k.name)}</option>`)
       .join("");
@@ -223,7 +305,57 @@ class SpeiseplanerCard extends HTMLElement {
     `;
   }
 
-  _renderEinkaufsliste() {
+  _addZutatRow() {
+    const container = this.shadowRoot.querySelector("[data-zutaten]");
+    const kategorieOptionen = this._data.kategorien
+      .map((k) => `<option value="${this._escape(k.name)}">${this._escape(k.name)}</option>`)
+      .join("");
+    const wrapper = document.createElement("div");
+    wrapper.innerHTML = this._zutatRow(kategorieOptionen);
+    container.appendChild(wrapper.firstElementChild);
+  }
+
+  _attachListeners(root) {
+    this._bindDeleteButtons(root, "delete_rezept", "delete_rezept", "rezept_id");
+
+    const addZutatButton = root.querySelector("button[data-action='add_zutat_row']");
+    if (addZutatButton) {
+      addZutatButton.addEventListener("click", () => this._addZutatRow());
+    }
+
+    this._bindForm(root, "rezept", (data) => {
+      const zutaten = [];
+      root.querySelectorAll(".zutat-row").forEach((row) => {
+        const name = row.querySelector("[data-zutat='name']").value.trim();
+        if (!name) return;
+        zutaten.push({
+          name,
+          anzahl: Number(row.querySelector("[data-zutat='anzahl']").value || 0),
+          einheit: row.querySelector("[data-zutat='einheit']").value.trim(),
+          kategorie: row.querySelector("[data-zutat='kategorie']").value,
+        });
+      });
+      return {
+        service: "add_rezept",
+        payload: {
+          name: data.get("name"),
+          portionen: Number(data.get("portionen")),
+          zutaten,
+          rezeptanleitung: data.get("rezeptanleitung") || "",
+        },
+      };
+    });
+  }
+}
+
+// -- Einkaufsliste-Karte --------------------------------------------------
+
+class SpeiseplanerEinkaufslisteCard extends SpeiseplanerBaseCard {
+  _cardTitle() {
+    return "Einkaufsliste";
+  }
+
+  _renderContent() {
     const offene = this._data.einkaufsliste.filter((e) => !e.erledigt);
     const erledigte = this._data.einkaufsliste.filter((e) => e.erledigt);
     const gruppen = this._gruppiereNachKategorie(offene);
@@ -233,13 +365,13 @@ class SpeiseplanerCard extends HTMLElement {
 
     const gruppenHtml =
       Object.entries(gruppen)
-        .map(([kategorie, eintraege]) => this._renderEinkaufslisteGruppe(kategorie, eintraege))
+        .map(([kategorie, eintraege]) => this._renderGruppe(kategorie, eintraege))
         .join("") || `<p class="empty">Einkaufsliste ist leer.</p>`;
 
     const erledigtHtml = erledigte.length
       ? `<details class="gruppe erledigt">
           <summary>Erledigt (${erledigte.length})</summary>
-          ${this._renderEinkaufslisteItems(erledigte)}
+          ${this._renderItems(erledigte)}
         </details>`
       : "";
 
@@ -271,16 +403,16 @@ class SpeiseplanerCard extends HTMLElement {
     return gruppen;
   }
 
-  _renderEinkaufslisteGruppe(kategorie, eintraege) {
+  _renderGruppe(kategorie, eintraege) {
     return `
       <details class="gruppe" open>
         <summary>${this._escape(kategorie)} (${eintraege.length})</summary>
-        ${this._renderEinkaufslisteItems(eintraege)}
+        ${this._renderItems(eintraege)}
       </details>
     `;
   }
 
-  _renderEinkaufslisteItems(eintraege) {
+  _renderItems(eintraege) {
     const zeilen = eintraege
       .map((e) => {
         const menge = e.einheit
@@ -304,26 +436,13 @@ class SpeiseplanerCard extends HTMLElement {
     return `<ul class="list">${zeilen}</ul>`;
   }
 
-  _escape(value) {
-    const div = document.createElement("div");
-    div.textContent = value ?? "";
-    return div.innerHTML;
-  }
-
-  _attachListeners() {
-    const root = this.shadowRoot;
-
-    root.querySelectorAll(".tab").forEach((btn) => {
-      btn.addEventListener("click", () => this._switchTab(btn.dataset.tab));
-    });
-
-    root.querySelectorAll("button[data-action]").forEach((btn) => {
-      if (btn.dataset.action === "add_zutat_row") {
-        btn.addEventListener("click", () => this._addZutatRow());
-        return;
-      }
-      btn.addEventListener("click", () => this._handleButtonAction(btn));
-    });
+  _attachListeners(root) {
+    this._bindDeleteButtons(
+      root,
+      "delete_einkaufsliste_eintrag",
+      "delete_einkaufsliste_eintrag",
+      "einkaufslisteneintrag_id"
+    );
 
     root.querySelectorAll("input[data-action='toggle_erledigt']").forEach((checkbox) => {
       checkbox.addEventListener("change", () =>
@@ -332,38 +451,6 @@ class SpeiseplanerCard extends HTMLElement {
           erledigt: checkbox.checked,
         })
       );
-    });
-
-    this._bindForm(root, "speiseplaneintrag", (data) => ({
-      service: "add_speiseplaneintrag",
-      payload: {
-        datum: data.get("datum"),
-        rezept_id: data.get("rezept_id"),
-        portionen: Number(data.get("portionen")),
-      },
-    }));
-
-    this._bindForm(root, "rezept", (data, form) => {
-      const zutaten = [];
-      root.querySelectorAll(".zutat-row").forEach((row) => {
-        const name = row.querySelector("[data-zutat='name']").value.trim();
-        if (!name) return;
-        zutaten.push({
-          name,
-          anzahl: Number(row.querySelector("[data-zutat='anzahl']").value || 0),
-          einheit: row.querySelector("[data-zutat='einheit']").value.trim(),
-          kategorie: row.querySelector("[data-zutat='kategorie']").value,
-        });
-      });
-      return {
-        service: "add_rezept",
-        payload: {
-          name: data.get("name"),
-          portionen: Number(data.get("portionen")),
-          zutaten,
-          rezeptanleitung: data.get("rezeptanleitung") || "",
-        },
-      };
     });
 
     this._bindForm(root, "einkaufsliste_eintrag", (data) => ({
@@ -376,101 +463,27 @@ class SpeiseplanerCard extends HTMLElement {
       },
     }));
   }
-
-  _bindForm(root, name, buildCall) {
-    const form = root.querySelector(`form[data-form='${name}']`);
-    if (!form) return;
-    form.addEventListener("submit", (ev) => {
-      ev.preventDefault();
-      const data = new FormData(form);
-      const { service, payload } = buildCall(data, form);
-      this._callService(service, payload);
-    });
-  }
-
-  _addZutatRow() {
-    const container = this.shadowRoot.querySelector("[data-zutaten]");
-    const kategorieOptionen = this._data.kategorien
-      .map((k) => `<option value="${this._escape(k.name)}">${this._escape(k.name)}</option>`)
-      .join("");
-    const wrapper = document.createElement("div");
-    wrapper.innerHTML = this._zutatRow(kategorieOptionen);
-    container.appendChild(wrapper.firstElementChild);
-  }
-
-  _handleButtonAction(btn) {
-    const action = btn.dataset.action;
-    const id = btn.dataset.id;
-    const map = {
-      delete_speiseplaneintrag: {
-        service: "delete_speiseplaneintrag",
-        data: { speiseplaneintrag_id: id },
-      },
-      delete_rezept: { service: "delete_rezept", data: { rezept_id: id } },
-      delete_einkaufsliste_eintrag: {
-        service: "delete_einkaufsliste_eintrag",
-        data: { einkaufslisteneintrag_id: id },
-      },
-    };
-    const mapped = map[action];
-    if (mapped) {
-      this._callService(mapped.service, mapped.data);
-    }
-  }
-
-  _baseStyles() {
-    return `<style>
-      :host { display: block; }
-      .tabs { display: flex; gap: 4px; padding: 8px 16px 0; flex-wrap: wrap; }
-      .tab {
-        background: none; border: none; padding: 8px 12px; cursor: pointer;
-        color: var(--secondary-text-color); border-bottom: 2px solid transparent;
-        font-size: 14px;
-      }
-      .tab.active { color: var(--primary-color); border-bottom-color: var(--primary-color); }
-      .content { padding: 8px 16px 16px; }
-      form { margin-bottom: 12px; }
-      .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 8px; }
-      input, select, textarea, button {
-        font: inherit; color: var(--primary-text-color);
-        background: var(--card-background-color, #fff);
-        border: 1px solid var(--divider-color, #ccc); border-radius: 4px; padding: 6px 8px;
-      }
-      textarea { width: 100%; min-height: 60px; box-sizing: border-box; }
-      button[type="submit"], button.tab, button[data-action] { cursor: pointer; }
-      button[data-action="add_zutat_row"] { margin: 4px 0 8px; }
-      .zutat-row { display: flex; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; }
-      ul.list { list-style: none; margin: 0; padding: 0; }
-      ul.list li {
-        display: flex; justify-content: space-between; align-items: center;
-        padding: 6px 0; border-bottom: 1px solid var(--divider-color, #eee);
-        gap: 8px;
-      }
-      ul.list li.empty, p.empty { color: var(--secondary-text-color); border-bottom: none; }
-      .zutaten-liste { font-size: 12px; color: var(--secondary-text-color); }
-      details.gruppe { margin-bottom: 8px; }
-      details.gruppe summary {
-        cursor: pointer; font-weight: 500; padding: 6px 0;
-        color: var(--primary-text-color);
-      }
-      details.erledigt summary { color: var(--secondary-text-color); }
-      .error {
-        margin: 0 16px; padding: 8px; border-radius: 4px;
-        background: var(--error-color, #db4437); color: white;
-      }
-      button[data-action^="delete"] {
-        background: none; border: none; color: var(--secondary-text-color);
-        font-size: 16px; padding: 0 4px;
-      }
-    </style>`;
-  }
 }
 
-customElements.define("speiseplaner-card", SpeiseplanerCard);
+customElements.define("speiseplaner-speiseplan-card", SpeiseplanerSpeiseplanCard);
+customElements.define("speiseplaner-rezepte-card", SpeiseplanerRezepteCard);
+customElements.define("speiseplaner-einkaufsliste-card", SpeiseplanerEinkaufslisteCard);
 
 window.customCards = window.customCards || [];
-window.customCards.push({
-  type: "speiseplaner-card",
-  name: "Speiseplaner",
-  description: "Rezepte, Speiseplan und kategorisierte Einkaufsliste verwalten.",
-});
+window.customCards.push(
+  {
+    type: "speiseplaner-speiseplan-card",
+    name: "Speiseplaner: Speiseplan",
+    description: "Speiseplan-Einträge anzeigen und bearbeiten.",
+  },
+  {
+    type: "speiseplaner-rezepte-card",
+    name: "Speiseplaner: Rezepte",
+    description: "Rezepte anlegen und verwalten.",
+  },
+  {
+    type: "speiseplaner-einkaufsliste-card",
+    name: "Speiseplaner: Einkaufsliste",
+    description: "Kategorisierte Einkaufsliste anzeigen und abhaken.",
+  }
+);
