@@ -157,6 +157,32 @@ class SpeiseplanerBaseCard extends HTMLElement {
       .join("");
   }
 
+  _formatZeiten(rezept) {
+    const teile = [];
+    if (rezept.vorbereitungsdauer) teile.push(`Vorbereitung ${rezept.vorbereitungsdauer} min`);
+    if (rezept.zubereitungsdauer) teile.push(`Zubereitung ${rezept.zubereitungsdauer} min`);
+    return teile.join(" · ");
+  }
+
+  /** Löst signierte, kurzlebige URLs für Bilder auf (Bilder sind über die
+   * HA-API nur mit gültigem Token abrufbar, ein <img src> ohne Signatur
+   * würde mit 401 fehlschlagen). */
+  async _signiereBilder(root) {
+    const bilder = root.querySelectorAll("img[data-bild-id]");
+    for (const img of bilder) {
+      const bildId = img.dataset.bildId;
+      try {
+        const signiert = await this._hass.callWS({
+          type: "auth/sign_path",
+          path: `/api/image/serve/${bildId}/512x512`,
+        });
+        img.src = signiert.path;
+      } catch (err) {
+        // Bild bleibt ohne Vorschau, kein harter Fehler für die Karte.
+      }
+    }
+  }
+
   _bindForm(root, name, buildCall) {
     const form = root.querySelector(`form[data-form='${name}']`);
     if (!form) return;
@@ -260,6 +286,13 @@ class SpeiseplanerBaseCard extends HTMLElement {
       .feld-mittel { width: 8ch; flex: 0 0 auto; }
       .feld-klein { width: 6ch; flex: 0 0 auto; }
       .modal-aktionen { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+      .zeiten { font-size: 12px; color: var(--secondary-text-color); }
+      .rezept-bild {
+        max-width: 100%; max-height: 160px; border-radius: 4px; margin: 6px 0;
+        display: block; object-fit: cover;
+      }
+      .aktionen { display: flex; gap: 4px; flex-shrink: 0; }
+      .aktionen button { background: none; border: none; font-size: 16px; padding: 0 4px; }
       .error {
         margin: 0 16px; padding: 8px; border-radius: 4px;
         background: var(--error-color, #db4437); color: white;
@@ -327,7 +360,7 @@ class SpeiseplanerSpeiseplanCard extends SpeiseplanerBaseCard {
         <button class="fab-add" type="button" data-action="open_add_modal" title="Eintrag hinzufügen">+</button>
       </div>
       ${tage}
-      ${this._modalOpen ? this._renderModal() : ""}
+      ${this._modalOpen ? (this._viewingEintrag ? this._renderViewModal() : this._renderModal()) : ""}
     `;
   }
 
@@ -351,6 +384,7 @@ class SpeiseplanerSpeiseplanCard extends SpeiseplanerBaseCard {
       this._rezeptName(eintrag.rezept_id)
     )} (${eintrag.portionen} Portionen)</span>
         <div class="aktionen">
+          <button data-action="view_speiseplaneintrag" data-id="${eintrag.id}" title="Rezept anzeigen">📋</button>
           <button data-action="edit_speiseplaneintrag" data-id="${eintrag.id}" title="Bearbeiten">✏️</button>
           <button data-action="delete_speiseplaneintrag" data-id="${eintrag.id}" title="Löschen">✕</button>
         </div>
@@ -434,9 +468,17 @@ class SpeiseplanerSpeiseplanCard extends SpeiseplanerBaseCard {
       });
     });
 
+    root.querySelectorAll("button[data-action='view_speiseplaneintrag']").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const eintrag = this._data.speiseplan.find((e) => e.id === btn.dataset.id) || null;
+        if (eintrag) this._openViewModal(eintrag);
+      });
+    });
+
     if (!this._modalOpen) return;
 
     this._attachModalDismissHandlers(root);
+    this._signiereBilder(root);
 
     const closeButton = root.querySelector("button[data-action='close_modal']");
     if (closeButton) {
@@ -451,12 +493,62 @@ class SpeiseplanerSpeiseplanCard extends SpeiseplanerBaseCard {
 
   _openModal(eintrag) {
     this._editingEintrag = eintrag;
+    this._viewingEintrag = null;
+    super._openModal();
+  }
+
+  _openViewModal(eintrag) {
+    this._viewingEintrag = eintrag;
+    this._editingEintrag = null;
     super._openModal();
   }
 
   _closeModal() {
     this._editingEintrag = null;
+    this._viewingEintrag = null;
     super._closeModal();
+  }
+
+  _renderViewModal() {
+    const eintrag = this._viewingEintrag;
+    const rezept = this._data.rezepte.find((r) => r.id === eintrag.rezept_id);
+
+    if (!rezept) {
+      return `
+        <div class="modal-overlay" data-modal>
+          <div class="modal-box">
+            <h2 class="modal-titel">Rezept nicht gefunden</h2>
+            <div class="modal-aktionen">
+              <button type="button" data-action="close_modal">Schließen</button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    const faktor = eintrag.portionen / rezept.portionen;
+    const zeiten = this._formatZeiten(rezept);
+    const zutatenHtml = rezept.zutaten
+      .map((z) => {
+        const menge = Math.round(z.anzahl * faktor * 100) / 100;
+        return `<li>${menge} ${this._escape(z.einheit)} ${this._escape(z.name)}</li>`;
+      })
+      .join("");
+
+    return `
+      <div class="modal-overlay" data-modal>
+        <div class="modal-box">
+          <h2 class="modal-titel">${this._escape(rezept.name)} (${eintrag.portionen} Portionen)</h2>
+          ${rezept.bild ? `<img class="rezept-bild" data-bild-id="${rezept.bild}" alt="">` : ""}
+          ${zeiten ? `<div class="zeiten">${this._escape(zeiten)}</div>` : ""}
+          <ul class="zutaten-ansicht">${zutatenHtml}</ul>
+          <div class="anleitung-ansicht">${this._renderMarkdownLite(rezept.rezeptanleitung)}</div>
+          <div class="modal-aktionen">
+            <button type="button" data-action="close_modal">Schließen</button>
+          </div>
+        </div>
+      </div>
+    `;
   }
 
   async _handleSave(root) {
@@ -488,8 +580,11 @@ class SpeiseplanerSpeiseplanCard extends SpeiseplanerBaseCard {
       `<style>
         .tag-gruppe { margin-bottom: 12px; }
         .tag-titel { margin: 0 0 4px; font-size: 15px; }
-        .aktionen { display: flex; gap: 4px; flex-shrink: 0; }
-        .aktionen button { background: none; border: none; font-size: 16px; padding: 0 4px; }
+        .zutaten-ansicht { list-style: disc; margin: 8px 0 0; padding-left: 20px; }
+        .zutaten-ansicht li { padding: 2px 0; border-bottom: none; }
+        .anleitung-ansicht { margin-top: 8px; }
+        .anleitung-ansicht ul { margin: 4px 0; padding-left: 20px; }
+        .anleitung-ansicht p { margin: 4px 0; }
       </style>`
     );
   }
@@ -518,13 +613,6 @@ class SpeiseplanerRezepteCard extends SpeiseplanerBaseCard {
       <ul class="list rezept-liste">${zeilen}</ul>
       ${this._modalOpen ? this._renderModal() : ""}
     `;
-  }
-
-  _formatZeiten(rezept) {
-    const teile = [];
-    if (rezept.vorbereitungsdauer) teile.push(`Vorbereitung ${rezept.vorbereitungsdauer} min`);
-    if (rezept.zubereitungsdauer) teile.push(`Zubereitung ${rezept.zubereitungsdauer} min`);
-    return teile.join(" · ");
   }
 
   _renderRezeptZeile(rezept) {
@@ -698,25 +786,6 @@ class SpeiseplanerRezepteCard extends SpeiseplanerBaseCard {
     }
   }
 
-  /** Löst signierte, kurzlebige URLs für Bilder auf (Bilder sind über die
-   * HA-API nur mit gültigem Token abrufbar, ein <img src> ohne Signatur
-   * würde mit 401 fehlschlagen). */
-  async _signiereBilder(root) {
-    const bilder = root.querySelectorAll("img[data-bild-id]");
-    for (const img of bilder) {
-      const bildId = img.dataset.bildId;
-      try {
-        const signiert = await this._hass.callWS({
-          type: "auth/sign_path",
-          path: `/api/image/serve/${bildId}/512x512`,
-        });
-        img.src = signiert.path;
-      } catch (err) {
-        // Bild bleibt ohne Vorschau, kein harter Fehler für die Karte.
-      }
-    }
-  }
-
   _openModal(rezept) {
     this._editingRezept = rezept;
     super._openModal();
@@ -812,13 +881,6 @@ class SpeiseplanerRezepteCard extends SpeiseplanerBaseCard {
       `<style>
         .rezept-liste li.rezept-zeile { display: block; }
         .rezept-kopf { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
-        .aktionen { display: flex; gap: 4px; flex-shrink: 0; }
-        .aktionen button { background: none; border: none; font-size: 16px; padding: 0 4px; }
-        .zeiten { font-size: 12px; color: var(--secondary-text-color); }
-        .rezept-bild {
-          max-width: 100%; max-height: 160px; border-radius: 4px; margin: 6px 0;
-          display: block; object-fit: cover;
-        }
         details.anleitung summary { font-size: 13px; }
         details.anleitung ul { margin: 4px 0; padding-left: 20px; }
         details.anleitung p { margin: 4px 0; }
