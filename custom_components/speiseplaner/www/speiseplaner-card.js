@@ -274,9 +274,21 @@ class SpeiseplanerBaseCard extends HTMLElement {
 
 // -- Speiseplan-Karte -------------------------------------------------------
 
+const MAHLZEITEN = [
+  { id: "fruehstueck", name: "Frühstück" },
+  { id: "mittagessen", name: "Mittagessen" },
+  { id: "vesper", name: "Vesper" },
+  { id: "abendbrot", name: "Abendbrot" },
+];
+const MAHLZEIT_REIHENFOLGE = MAHLZEITEN.map((m) => m.id);
+
 class SpeiseplanerSpeiseplanCard extends SpeiseplanerBaseCard {
   _cardTitle() {
     return "Speiseplan";
+  }
+
+  getCardSize() {
+    return 8;
   }
 
   _rezeptName(id) {
@@ -284,40 +296,121 @@ class SpeiseplanerSpeiseplanCard extends SpeiseplanerBaseCard {
     return rezept ? rezept.name : "Unbekanntes Rezept";
   }
 
-  _renderContent() {
-    const eintraege = [...this._data.speiseplan].sort((a, b) =>
-      a.datum.localeCompare(b.datum)
-    );
-    const rezeptOptionen = this._data.rezepte
-      .map((r) => `<option value="${r.id}">${this._escape(r.name)}</option>`)
-      .join("");
+  _mahlzeitLabel(id) {
+    const mahlzeit = MAHLZEITEN.find((m) => m.id === id);
+    return mahlzeit ? mahlzeit.name : "Sonstiges";
+  }
 
-    const zeilen =
-      eintraege
-        .map(
-          (e) => `
-          <li>
-            <span>${this._escape(e.datum)} — ${this._escape(
-            this._rezeptName(e.rezept_id)
-          )} (${e.portionen} Portionen)</span>
-            <button data-action="delete_speiseplaneintrag" data-id="${e.id}" title="Löschen">✕</button>
-          </li>`
-        )
-        .join("") || `<li class="empty">Noch keine Einträge.</li>`;
+  _mahlzeitIndex(id) {
+    const index = MAHLZEIT_REIHENFOLGE.indexOf(id);
+    return index === -1 ? MAHLZEIT_REIHENFOLGE.length : index;
+  }
+
+  _gruppiereNachDatum(eintraege) {
+    const gruppen = {};
+    for (const eintrag of eintraege) {
+      if (!gruppen[eintrag.datum]) gruppen[eintrag.datum] = [];
+      gruppen[eintrag.datum].push(eintrag);
+    }
+    return gruppen;
+  }
+
+  _renderContent() {
+    const gruppen = this._gruppiereNachDatum(this._data.speiseplan);
+    const daten = Object.keys(gruppen).sort();
+    const tage =
+      daten.map((datum) => this._renderTag(datum, gruppen[datum])).join("") ||
+      `<p class="empty">Noch keine Einträge.</p>`;
 
     return `
-      <form data-form="speiseplaneintrag">
-        <div class="row">
-          <input type="date" name="datum" required>
-          <select name="rezept_id" required>
-            <option value="" disabled selected>Rezept wählen</option>
-            ${rezeptOptionen}
-          </select>
-          <input type="number" name="portionen" min="1" value="4" required>
-          <button type="submit">Hinzufügen</button>
+      <div class="toolbar">
+        <button class="fab-add" type="button" data-action="open_add_modal" title="Eintrag hinzufügen">+</button>
+      </div>
+      ${tage}
+      ${this._modalOpen ? this._renderModal() : ""}
+    `;
+  }
+
+  _renderTag(datum, eintraege) {
+    const sortiert = [...eintraege].sort(
+      (a, b) => this._mahlzeitIndex(a.mahlzeit) - this._mahlzeitIndex(b.mahlzeit)
+    );
+    const zeilen = sortiert.map((e) => this._renderEintrag(e)).join("");
+    return `
+      <div class="tag-gruppe">
+        <h3 class="tag-titel">${this._escape(datum)}</h3>
+        <ul class="list">${zeilen}</ul>
+      </div>
+    `;
+  }
+
+  _renderEintrag(eintrag) {
+    return `
+      <li>
+        <span>${this._escape(this._mahlzeitLabel(eintrag.mahlzeit))}: ${this._escape(
+      this._rezeptName(eintrag.rezept_id)
+    )} (${eintrag.portionen} Portionen)</span>
+        <div class="aktionen">
+          <button data-action="edit_speiseplaneintrag" data-id="${eintrag.id}" title="Bearbeiten">✏️</button>
+          <button data-action="delete_speiseplaneintrag" data-id="${eintrag.id}" title="Löschen">✕</button>
         </div>
-      </form>
-      <ul class="list">${zeilen}</ul>
+      </li>
+    `;
+  }
+
+  _mahlzeitOptionenHtml(ausgewaehlt) {
+    return MAHLZEITEN.map((m) => {
+      const selected = m.id === ausgewaehlt ? " selected" : "";
+      return `<option value="${m.id}"${selected}>${this._escape(m.name)}</option>`;
+    }).join("");
+  }
+
+  _renderModal() {
+    const eintrag = this._editingEintrag;
+    const titel = eintrag ? "Eintrag bearbeiten" : "Eintrag hinzufügen";
+    const rezeptOptionen = this._data.rezepte
+      .map((r) => {
+        const selected = eintrag && eintrag.rezept_id === r.id ? " selected" : "";
+        return `<option value="${r.id}"${selected}>${this._escape(r.name)}</option>`;
+      })
+      .join("");
+
+    return `
+      <div class="modal-overlay" data-modal>
+        <div class="modal-box">
+          <h2 class="modal-titel">${titel}</h2>
+          ${this._error ? `<div class="error">${this._escape(this._error)}</div>` : ""}
+          <form data-form="speiseplan-modal">
+            <div class="feld-zeile">
+              <input type="date" class="feld-voll" name="datum" value="${this._escape(
+                eintrag?.datum || ""
+              )}" required>
+            </div>
+            <div class="feld-zeile">
+              <select class="feld-voll" name="mahlzeit" required>
+                <option value="" disabled${eintrag ? "" : " selected"}>Mahlzeit wählen</option>
+                ${this._mahlzeitOptionenHtml(eintrag?.mahlzeit || "")}
+              </select>
+            </div>
+            <div class="feld-zeile">
+              <select class="feld-voll" name="rezept_id" required>
+                <option value="" disabled${eintrag ? "" : " selected"}>Rezept wählen</option>
+                ${rezeptOptionen}
+              </select>
+            </div>
+            <div class="feld-zeile">
+              <span>Portionen:</span>
+              <input type="number" class="feld-mittel" name="portionen" min="1" value="${
+                eintrag?.portionen ?? 4
+              }" required>
+            </div>
+            <div class="modal-aktionen">
+              <button type="button" data-action="close_modal">Abbrechen</button>
+              <button type="button" data-action="save_modal">Speichern</button>
+            </div>
+          </form>
+        </div>
+      </div>
     `;
   }
 
@@ -329,14 +422,76 @@ class SpeiseplanerSpeiseplanCard extends SpeiseplanerBaseCard {
       "speiseplaneintrag_id"
     );
 
-    this._bindForm(root, "speiseplaneintrag", (data) => ({
-      service: "add_speiseplaneintrag",
-      payload: {
-        datum: data.get("datum"),
-        rezept_id: data.get("rezept_id"),
-        portionen: Number(data.get("portionen")),
-      },
-    }));
+    const addButton = root.querySelector("button[data-action='open_add_modal']");
+    if (addButton) {
+      addButton.addEventListener("click", () => this._openModal(null));
+    }
+
+    root.querySelectorAll("button[data-action='edit_speiseplaneintrag']").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const eintrag = this._data.speiseplan.find((e) => e.id === btn.dataset.id) || null;
+        this._openModal(eintrag);
+      });
+    });
+
+    if (!this._modalOpen) return;
+
+    this._attachModalDismissHandlers(root);
+
+    const closeButton = root.querySelector("button[data-action='close_modal']");
+    if (closeButton) {
+      closeButton.addEventListener("click", () => this._closeModal());
+    }
+
+    const saveButton = root.querySelector("button[data-action='save_modal']");
+    if (saveButton) {
+      saveButton.addEventListener("click", () => this._handleSave(root));
+    }
+  }
+
+  _openModal(eintrag) {
+    this._editingEintrag = eintrag;
+    super._openModal();
+  }
+
+  _closeModal() {
+    this._editingEintrag = null;
+    super._closeModal();
+  }
+
+  async _handleSave(root) {
+    const form = root.querySelector("form[data-form='speiseplan-modal']");
+    const data = new FormData(form);
+
+    const payload = {
+      datum: data.get("datum"),
+      mahlzeit: data.get("mahlzeit"),
+      rezept_id: data.get("rezept_id"),
+      portionen: Number(data.get("portionen")),
+    };
+
+    let service = "add_speiseplaneintrag";
+    if (this._editingEintrag) {
+      service = "update_speiseplaneintrag";
+      payload.speiseplaneintrag_id = this._editingEintrag.id;
+    }
+
+    const erfolgreich = await this._callService(service, payload);
+    if (erfolgreich) {
+      this._closeModal();
+    }
+  }
+
+  _baseStyles() {
+    return (
+      super._baseStyles() +
+      `<style>
+        .tag-gruppe { margin-bottom: 12px; }
+        .tag-titel { margin: 0 0 4px; font-size: 15px; }
+        .aktionen { display: flex; gap: 4px; flex-shrink: 0; }
+        .aktionen button { background: none; border: none; font-size: 16px; padding: 0 4px; }
+      </style>`
+    );
   }
 }
 

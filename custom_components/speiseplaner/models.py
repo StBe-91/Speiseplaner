@@ -40,6 +40,7 @@ class Speiseplaneintrag:
     datum: str  # YYYY-MM-DD
     rezept_id: str
     portionen: int
+    mahlzeit: str = ""
 
 @dataclass
 class Kategorie:

@@ -4,6 +4,7 @@ from homeassistant.components.calendar import CalendarEntity, CalendarEvent
 
 from .const import DOMAIN
 from .entity import StorageUpdateMixin, build_device_info
+from .mahlzeiten import MAHLZEIT_LABELS
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
@@ -22,11 +23,13 @@ class SpeiseplanCalendar(StorageUpdateMixin, CalendarEntity):
     def _build_event(self, eintrag: dict) -> CalendarEvent:
         rezept = self.storage.find("rezepte", eintrag["rezept_id"])
         name = rezept["name"] if rezept else "Unbekanntes Rezept"
+        mahlzeit_label = MAHLZEIT_LABELS.get(eintrag.get("mahlzeit", ""))
+        titel = f"{mahlzeit_label}: {name}" if mahlzeit_label else name
         tag = date.fromisoformat(eintrag["datum"])
         return CalendarEvent(
             start=tag,
             end=tag + timedelta(days=1),
-            summary=f"{name} ({eintrag['portionen']} Portionen)",
+            summary=f"{titel} ({eintrag['portionen']} Portionen)",
             uid=eintrag["id"],
         )
 

@@ -35,10 +35,13 @@ async def test_add_speiseplaneintrag_befuellt_einkaufsliste_skaliert():
     await async_setup_services(hass, storage)
 
     await hass.services.registered["add_speiseplaneintrag"](
-        FakeServiceCall({"datum": "2026-07-20", "rezept_id": "r1", "portionen": 8})
+        FakeServiceCall(
+            {"datum": "2026-07-20", "mahlzeit": "mittagessen", "rezept_id": "r1", "portionen": 8}
+        )
     )
 
     assert len(storage.data["speiseplan"]) == 1
+    assert storage.data["speiseplan"][0]["mahlzeit"] == "mittagessen"
     assert len(storage.data["einkaufsliste"]) == 1
     assert storage.data["einkaufsliste"][0]["anzahl"] == 1000  # 500g bei 4 Portionen -> 8 Portionen
 
@@ -50,7 +53,14 @@ async def test_add_speiseplaneintrag_mit_unbekanntem_rezept_wirft_fehler():
 
     with pytest.raises(ServiceValidationError):
         await hass.services.registered["add_speiseplaneintrag"](
-            FakeServiceCall({"datum": "2026-07-20", "rezept_id": "unbekannt", "portionen": 4})
+            FakeServiceCall(
+                {
+                    "datum": "2026-07-20",
+                    "mahlzeit": "mittagessen",
+                    "rezept_id": "unbekannt",
+                    "portionen": 4,
+                }
+            )
         )
 
     assert storage.data["speiseplan"] == []
@@ -124,7 +134,9 @@ async def test_add_speiseplaneintrag_funktioniert_mit_zeitangaben_und_bild():
     services = await setup_services(storage)
 
     await services["add_speiseplaneintrag"](
-        FakeServiceCall({"datum": "2026-07-20", "rezept_id": "r1", "portionen": 4})
+        FakeServiceCall(
+            {"datum": "2026-07-20", "mahlzeit": "mittagessen", "rezept_id": "r1", "portionen": 4}
+        )
     )
 
     assert len(storage.data["einkaufsliste"]) == 1
@@ -229,7 +241,9 @@ async def test_update_speiseplaneintrag_aktualisiert_felder():
     storage = make_storage_mit_rezept()
     services = await setup_services(storage)
     await services["add_speiseplaneintrag"](
-        FakeServiceCall({"datum": "2026-07-20", "rezept_id": "r1", "portionen": 4})
+        FakeServiceCall(
+            {"datum": "2026-07-20", "mahlzeit": "mittagessen", "rezept_id": "r1", "portionen": 4}
+        )
     )
     speiseplaneintrag_id = storage.data["speiseplan"][0]["id"]
 
@@ -238,6 +252,7 @@ async def test_update_speiseplaneintrag_aktualisiert_felder():
             {
                 "speiseplaneintrag_id": speiseplaneintrag_id,
                 "datum": "2026-07-21",
+                "mahlzeit": "abendbrot",
                 "rezept_id": "r1",
                 "portionen": 2,
             }
@@ -246,6 +261,7 @@ async def test_update_speiseplaneintrag_aktualisiert_felder():
 
     eintrag = storage.data["speiseplan"][0]
     assert eintrag["datum"] == "2026-07-21"
+    assert eintrag["mahlzeit"] == "abendbrot"
     assert eintrag["portionen"] == 2
     # Die ursprünglich für 4 Portionen hinzugefügte Menge bleibt unverändert,
     # da update_speiseplaneintrag die Einkaufsliste bewusst nicht nachzieht.
@@ -256,7 +272,9 @@ async def test_update_speiseplaneintrag_mit_unbekanntem_rezept_wirft_fehler():
     storage = make_storage_mit_rezept()
     services = await setup_services(storage)
     await services["add_speiseplaneintrag"](
-        FakeServiceCall({"datum": "2026-07-20", "rezept_id": "r1", "portionen": 4})
+        FakeServiceCall(
+            {"datum": "2026-07-20", "mahlzeit": "mittagessen", "rezept_id": "r1", "portionen": 4}
+        )
     )
     speiseplaneintrag_id = storage.data["speiseplan"][0]["id"]
 
@@ -266,6 +284,7 @@ async def test_update_speiseplaneintrag_mit_unbekanntem_rezept_wirft_fehler():
                 {
                     "speiseplaneintrag_id": speiseplaneintrag_id,
                     "datum": "2026-07-21",
+                    "mahlzeit": "abendbrot",
                     "rezept_id": "unbekannt",
                     "portionen": 2,
                 }
@@ -273,11 +292,60 @@ async def test_update_speiseplaneintrag_mit_unbekanntem_rezept_wirft_fehler():
         )
 
 
+async def test_mehrere_mahlzeiten_am_gleichen_tag_moeglich():
+    storage = make_storage_mit_rezept()
+    services = await setup_services(storage)
+
+    await services["add_speiseplaneintrag"](
+        FakeServiceCall(
+            {"datum": "2026-07-20", "mahlzeit": "fruehstueck", "rezept_id": "r1", "portionen": 2}
+        )
+    )
+    await services["add_speiseplaneintrag"](
+        FakeServiceCall(
+            {"datum": "2026-07-20", "mahlzeit": "mittagessen", "rezept_id": "r1", "portionen": 4}
+        )
+    )
+
+    eintraege = [e for e in storage.data["speiseplan"] if e["datum"] == "2026-07-20"]
+    assert {e["mahlzeit"] for e in eintraege} == {"fruehstueck", "mittagessen"}
+
+
+async def test_update_speiseplaneintrag_verschiebt_ohne_neue_id():
+    storage = make_storage_mit_rezept()
+    services = await setup_services(storage)
+    await services["add_speiseplaneintrag"](
+        FakeServiceCall(
+            {"datum": "2026-07-20", "mahlzeit": "mittagessen", "rezept_id": "r1", "portionen": 4}
+        )
+    )
+    speiseplaneintrag_id = storage.data["speiseplan"][0]["id"]
+
+    await services["update_speiseplaneintrag"](
+        FakeServiceCall(
+            {
+                "speiseplaneintrag_id": speiseplaneintrag_id,
+                "datum": "2026-07-25",
+                "mahlzeit": "mittagessen",
+                "rezept_id": "r1",
+                "portionen": 4,
+            }
+        )
+    )
+
+    assert len(storage.data["speiseplan"]) == 1
+    verschoben = storage.data["speiseplan"][0]
+    assert verschoben["id"] == speiseplaneintrag_id
+    assert verschoben["datum"] == "2026-07-25"
+
+
 async def test_delete_speiseplaneintrag_entfernt_eintrag():
     storage = make_storage_mit_rezept()
     services = await setup_services(storage)
     await services["add_speiseplaneintrag"](
-        FakeServiceCall({"datum": "2026-07-20", "rezept_id": "r1", "portionen": 4})
+        FakeServiceCall(
+            {"datum": "2026-07-20", "mahlzeit": "mittagessen", "rezept_id": "r1", "portionen": 4}
+        )
     )
     speiseplaneintrag_id = storage.data["speiseplan"][0]["id"]
 

@@ -35,6 +35,24 @@ def test_build_event_setzt_start_ende_und_zusammenfassung():
     assert event.uid == "s1"
 
 
+def test_build_event_mit_mahlzeit_zeigt_label_im_titel():
+    storage = make_storage()
+    storage.data["speiseplan"] = [
+        {
+            "id": "s1",
+            "datum": "2026-07-20",
+            "rezept_id": "r1",
+            "portionen": 2,
+            "mahlzeit": "fruehstueck",
+        }
+    ]
+    kalender = SpeiseplanCalendar(storage, "entry1")
+
+    event = kalender._all_events()[0]
+
+    assert event.summary == "Frühstück: Lasagne (2 Portionen)"
+
+
 def test_build_event_mit_unbekanntem_rezept():
     storage = make_storage()
     storage.data["speiseplan"] = [{"id": "s1", "datum": "2026-07-20", "rezept_id": "unbekannt", "portionen": 2}]

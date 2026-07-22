@@ -64,6 +64,9 @@ add_speiseplaneintrag:
     datum:
       required: true
       example: "2026-07-20"
+    mahlzeit:
+      required: true
+      example: "mittagessen"
     rezept_id:
       required: true
       example: "uuid"
@@ -80,6 +83,9 @@ update_speiseplaneintrag:
     datum:
       required: true
       example: "2026-07-20"
+    mahlzeit:
+      required: true
+      example: "mittagessen"
     rezept_id:
       required: true
       example: "uuid"

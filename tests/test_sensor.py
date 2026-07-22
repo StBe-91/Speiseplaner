@@ -44,6 +44,17 @@ def test_mehrere_heutige_eintraege_werden_zusammengefasst():
     assert sensor.extra_state_attributes == {"anzahl_eintraege": 2}
 
 
+def test_eintrag_mit_mahlzeit_zeigt_label_vor_dem_namen():
+    storage = make_storage()
+    heute = date.today().isoformat()
+    storage.data["speiseplan"] = [
+        {"id": "s1", "datum": heute, "rezept_id": "r1", "portionen": 4, "mahlzeit": "fruehstueck"}
+    ]
+    sensor = SpeiseplanHeuteSensor(storage, "entry1")
+
+    assert sensor.native_value == "Frühstück: Lasagne"
+
+
 def test_unbekanntes_rezept_wird_als_solches_angezeigt():
     storage = make_storage()
     heute = date.today().isoformat()

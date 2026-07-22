@@ -76,6 +76,7 @@ async def async_setup_services(hass: HomeAssistant, storage):
             datum=call.data["datum"],
             rezept_id=rezept_id,
             portionen=portionen,
+            mahlzeit=call.data["mahlzeit"],
         )
         storage.data["speiseplan"].append(asdict(entry))
 
@@ -110,6 +111,7 @@ async def async_setup_services(hass: HomeAssistant, storage):
             datum=call.data["datum"],
             rezept_id=rezept_id,
             portionen=call.data["portionen"],
+            mahlzeit=call.data["mahlzeit"],
         )
         eintrag_data.clear()
         eintrag_data.update(asdict(eintrag))

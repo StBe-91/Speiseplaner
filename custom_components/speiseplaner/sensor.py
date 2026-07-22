@@ -4,6 +4,7 @@ from homeassistant.components.sensor import SensorEntity
 
 from .const import DOMAIN
 from .entity import StorageUpdateMixin, build_device_info
+from .mahlzeiten import MAHLZEIT_LABELS
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
@@ -28,7 +29,9 @@ class SpeiseplanHeuteSensor(StorageUpdateMixin, SensorEntity):
         namen = []
         for eintrag in self._heutige_eintraege():
             rezept = self.storage.find("rezepte", eintrag["rezept_id"])
-            namen.append(rezept["name"] if rezept else "Unbekanntes Rezept")
+            name = rezept["name"] if rezept else "Unbekanntes Rezept"
+            mahlzeit_label = MAHLZEIT_LABELS.get(eintrag.get("mahlzeit", ""))
+            namen.append(f"{mahlzeit_label}: {name}" if mahlzeit_label else name)
         return ", ".join(namen) if namen else "Kein Eintrag"
 
     @property
