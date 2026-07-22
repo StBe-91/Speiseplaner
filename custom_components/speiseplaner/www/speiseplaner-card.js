@@ -407,16 +407,16 @@ class SpeiseplanerRezepteCard extends SpeiseplanerBaseCard {
               <span>Portionen</span>
             </div>
             <div class="feld-zeile">
-              <span>Vorbereitungszeit:</span>
+              <span>Vorbereitung:</span>
               <input type="number" class="feld-mittel" name="vorbereitungsdauer" min="0" value="${
                 rezept?.vorbereitungsdauer ?? 0
               }">
-              <span>Minuten</span>
-              <span>Zubereitungszeit:</span>
+              <span>Min.</span>
+              <span>Zubereitung:</span>
               <input type="number" class="feld-mittel" name="zubereitungsdauer" min="0" value="${
                 rezept?.zubereitungsdauer ?? 0
               }">
-              <span>Minuten</span>
+              <span>Min.</span>
             </div>
             <div class="bild-bereich">
               ${
@@ -655,8 +655,8 @@ class SpeiseplanerRezepteCard extends SpeiseplanerBaseCard {
         .feld-zeile { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
         .feld-zeile h3 { margin: 0; font-size: 15px; }
         .feld-voll { width: 100%; box-sizing: border-box; }
-        .feld-mittel { width: 6ch; flex: 0 0 auto; }
-        .feld-klein { width: 4ch; flex: 0 0 auto; }
+        .feld-mittel { width: 8ch; flex: 0 0 auto; }
+        .feld-klein { width: 6ch; flex: 0 0 auto; }
         .bild-bereich { margin: 8px 0; display: flex; flex-direction: column; gap: 6px; }
         .bild-vorschau { max-width: 100%; max-height: 160px; border-radius: 4px; object-fit: cover; }
         .zutat-eintrag { margin-bottom: 4px; }
