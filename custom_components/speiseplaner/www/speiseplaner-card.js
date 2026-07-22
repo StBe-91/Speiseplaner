@@ -358,53 +358,65 @@ class SpeiseplanerRezepteCard extends SpeiseplanerBaseCard {
 
   _zutatRow(zutat) {
     return `
-      <div class="zutat-row">
-        <input type="text" placeholder="Zutat" data-zutat="name" value="${this._escape(
-          zutat?.name || ""
-        )}" required>
-        <input type="number" placeholder="Menge" step="any" data-zutat="anzahl" value="${
-          zutat?.anzahl ?? ""
-        }" required>
-        <input type="text" placeholder="Einheit" data-zutat="einheit" value="${this._escape(
-          zutat?.einheit || ""
-        )}">
-        <select data-zutat="kategorie">
-          <option value="">Keine Kategorie</option>
-          ${this._kategorieOptionenHtml(zutat?.kategorie || "")}
-        </select>
-        <button type="button" data-action="remove_zutat_row" title="Zutat entfernen">✕</button>
+      <div class="zutat-eintrag">
+        <div class="zutat-row">
+          <input type="number" class="feld-klein" placeholder="Menge" step="any" data-zutat="anzahl" value="${
+            zutat?.anzahl ?? ""
+          }" required>
+          <input type="text" class="feld-klein" placeholder="Einheit" data-zutat="einheit" value="${this._escape(
+            zutat?.einheit || ""
+          )}">
+          <input type="text" placeholder="Zutat" data-zutat="name" value="${this._escape(
+            zutat?.name || ""
+          )}" required>
+          <select data-zutat="kategorie">
+            <option value="">Keine Kategorie</option>
+            ${this._kategorieOptionenHtml(zutat?.kategorie || "")}
+          </select>
+          <button type="button" data-action="remove_zutat_row" title="Zutat entfernen">✕</button>
+        </div>
+        <hr class="zutat-trenner">
       </div>
     `;
   }
 
   _renderModal() {
     const rezept = this._editingRezept;
-    const zutatenRows = rezept && rezept.zutaten.length
-      ? rezept.zutaten.map((z) => this._zutatRow(z)).join("")
-      : this._zutatRow();
+    const titel = rezept ? "Rezept bearbeiten" : "Rezept hinzufügen";
+    const zutatenRows =
+      rezept && rezept.zutaten.length
+        ? rezept.zutaten.map((z) => this._zutatRow(z)).join("")
+        : this._zutatRow();
 
     return `
-      <ha-dialog open heading="${rezept ? "Rezept bearbeiten" : "Rezept hinzufügen"}" data-modal>
-        <div class="dialog-content">
+      <div class="modal-overlay" data-modal>
+        <div class="modal-box">
+          <h2 class="modal-titel">${this._escape(titel)}</h2>
           ${this._error ? `<div class="error">${this._escape(this._error)}</div>` : ""}
           <form data-form="rezept-modal">
-            <div class="row">
-              <input type="text" name="name" placeholder="Name" value="${this._escape(
+            <div class="feld-zeile">
+              <input type="text" class="feld-voll" name="name" placeholder="Name" value="${this._escape(
                 rezept?.name || ""
               )}" required>
-              <input type="number" name="portionen" min="1" value="${rezept?.portionen ?? 4}" required>
             </div>
-            <div class="row">
-              <label>Vorbereitung (Min.)
-                <input type="number" name="vorbereitungsdauer" min="0" value="${
-                  rezept?.vorbereitungsdauer ?? 0
-                }">
-              </label>
-              <label>Zubereitung (Min.)
-                <input type="number" name="zubereitungsdauer" min="0" value="${
-                  rezept?.zubereitungsdauer ?? 0
-                }">
-              </label>
+            <div class="feld-zeile">
+              <span>Rezept für:</span>
+              <input type="number" class="feld-mittel" name="portionen" min="1" value="${
+                rezept?.portionen ?? 4
+              }" required>
+              <span>Portionen</span>
+            </div>
+            <div class="feld-zeile">
+              <span>Vorbereitungszeit:</span>
+              <input type="number" class="feld-mittel" name="vorbereitungsdauer" min="0" value="${
+                rezept?.vorbereitungsdauer ?? 0
+              }">
+              <span>Minuten</span>
+              <span>Zubereitungszeit:</span>
+              <input type="number" class="feld-mittel" name="zubereitungsdauer" min="0" value="${
+                rezept?.zubereitungsdauer ?? 0
+              }">
+              <span>Minuten</span>
             </div>
             <div class="bild-bereich">
               ${
@@ -418,20 +430,20 @@ class SpeiseplanerRezepteCard extends SpeiseplanerBaseCard {
               </label>
             </div>
             <div data-zutaten>${zutatenRows}</div>
-            <button type="button" data-action="add_zutat_row">+ Zutat</button>
-            <label>Zubereitung
-              <textarea name="rezeptanleitung" data-action="anleitung_input"
-                placeholder="Absätze durch Leerzeile trennen, Listenpunkte mit '- ' beginnen"
-              >${this._escape(rezept?.rezeptanleitung || "")}</textarea>
-            </label>
-            <div class="markdown-vorschau" data-vorschau>${this._renderMarkdownLite(
-              rezept?.rezeptanleitung || ""
-            )}</div>
+            <button type="button" data-action="add_zutat_row">weitere Zutat</button>
+            <div class="feld-zeile">
+              <h3>Zubereitung</h3>
+            </div>
+            <textarea name="rezeptanleitung"
+              placeholder="Absätze durch Leerzeile trennen, Listenpunkte mit '- ' beginnen"
+            >${this._escape(rezept?.rezeptanleitung || "")}</textarea>
+            <div class="modal-aktionen">
+              <button type="button" data-action="close_modal">Abbrechen</button>
+              <button type="button" data-action="save_modal">Speichern</button>
+            </div>
           </form>
         </div>
-        <mwc-button slot="secondaryAction" data-action="close_modal">Abbrechen</mwc-button>
-        <mwc-button slot="primaryAction" data-action="save_modal">Speichern</mwc-button>
-      </ha-dialog>
+      </div>
     `;
   }
 
@@ -453,10 +465,20 @@ class SpeiseplanerRezepteCard extends SpeiseplanerBaseCard {
 
     if (!this._modalOpen) return;
 
-    const dialog = root.querySelector("[data-modal]");
-    if (dialog) {
-      dialog.addEventListener("closed", () => this._closeModal());
+    const overlay = root.querySelector("[data-modal]");
+    if (overlay) {
+      overlay.addEventListener("click", (ev) => {
+        if (ev.target === overlay) this._closeModal();
+      });
     }
+
+    if (this._escHandler) {
+      document.removeEventListener("keydown", this._escHandler);
+    }
+    this._escHandler = (ev) => {
+      if (ev.key === "Escape") this._closeModal();
+    };
+    document.addEventListener("keydown", this._escHandler);
 
     const closeButton = root.querySelector("button[data-action='close_modal']");
     if (closeButton) {
@@ -469,20 +491,19 @@ class SpeiseplanerRezepteCard extends SpeiseplanerBaseCard {
     }
 
     root.querySelectorAll("button[data-action='remove_zutat_row']").forEach((btn) => {
-      btn.addEventListener("click", () => btn.closest(".zutat-row").remove());
+      btn.addEventListener("click", () => btn.closest(".zutat-eintrag").remove());
     });
-
-    const textarea = root.querySelector("textarea[data-action='anleitung_input']");
-    const vorschau = root.querySelector("[data-vorschau]");
-    if (textarea && vorschau) {
-      textarea.addEventListener("input", () => {
-        vorschau.innerHTML = this._renderMarkdownLite(textarea.value);
-      });
-    }
 
     const saveButton = root.querySelector("button[data-action='save_modal']");
     if (saveButton) {
       saveButton.addEventListener("click", () => this._handleSave(root));
+    }
+  }
+
+  disconnectedCallback() {
+    if (this._escHandler) {
+      document.removeEventListener("keydown", this._escHandler);
+      this._escHandler = null;
     }
   }
 
@@ -523,11 +544,11 @@ class SpeiseplanerRezepteCard extends SpeiseplanerBaseCard {
     const container = this.shadowRoot.querySelector("[data-zutaten]");
     const wrapper = document.createElement("div");
     wrapper.innerHTML = this._zutatRow();
-    const row = wrapper.firstElementChild;
-    container.appendChild(row);
-    row
+    const eintrag = wrapper.firstElementChild;
+    container.appendChild(eintrag);
+    eintrag
       .querySelector("[data-action='remove_zutat_row']")
-      .addEventListener("click", () => row.remove());
+      .addEventListener("click", () => eintrag.remove());
   }
 
   async _hochladenBild(file) {
@@ -620,15 +641,27 @@ class SpeiseplanerRezepteCard extends SpeiseplanerBaseCard {
         details.anleitung summary { font-size: 13px; }
         details.anleitung ul { margin: 4px 0; padding-left: 20px; }
         details.anleitung p { margin: 4px 0; }
-        .dialog-content { min-width: min(90vw, 420px); }
+        .modal-overlay {
+          position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5);
+          display: flex; align-items: center; justify-content: center;
+          z-index: 1000; padding: 16px; box-sizing: border-box;
+        }
+        .modal-box {
+          background: var(--card-background-color, #fff); color: var(--primary-text-color);
+          border-radius: 8px; padding: 16px; max-width: 480px; width: 100%;
+          max-height: 90vh; overflow-y: auto; box-sizing: border-box;
+        }
+        .modal-titel { margin: 0 0 12px; font-size: 20px; }
+        .feld-zeile { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+        .feld-zeile h3 { margin: 0; font-size: 15px; }
+        .feld-voll { width: 100%; box-sizing: border-box; }
+        .feld-mittel { width: 6ch; flex: 0 0 auto; }
+        .feld-klein { width: 4ch; flex: 0 0 auto; }
         .bild-bereich { margin: 8px 0; display: flex; flex-direction: column; gap: 6px; }
         .bild-vorschau { max-width: 100%; max-height: 160px; border-radius: 4px; object-fit: cover; }
-        .markdown-vorschau {
-          border: 1px solid var(--divider-color, #ccc); border-radius: 4px;
-          padding: 8px; margin-top: 4px; font-size: 13px; min-height: 24px;
-        }
-        .markdown-vorschau ul { margin: 4px 0; padding-left: 20px; }
-        .markdown-vorschau p { margin: 4px 0; }
+        .zutat-eintrag { margin-bottom: 4px; }
+        .zutat-trenner { border: none; border-top: 1px solid var(--divider-color, #ddd); margin: 8px 0; }
+        .modal-aktionen { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
         button[data-action='remove_zutat_row'] {
           background: none; border: none; color: var(--secondary-text-color); padding: 0 4px;
         }
