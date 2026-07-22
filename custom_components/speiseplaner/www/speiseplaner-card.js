@@ -60,7 +60,44 @@ class SpeiseplanerBaseCard extends HTMLElement {
   }
 
   _shouldSkipRefetch() {
-    return false;
+    return this._modalOpen === true;
+  }
+
+  _openModal() {
+    this._modalOpen = true;
+    this._error = null;
+    this._render();
+  }
+
+  _closeModal() {
+    this._modalOpen = false;
+    this._error = null;
+    this._render();
+  }
+
+  /** Schließt das Modal per Klick auf den Hintergrund oder Escape-Taste. */
+  _attachModalDismissHandlers(root) {
+    const overlay = root.querySelector("[data-modal]");
+    if (overlay) {
+      overlay.addEventListener("click", (ev) => {
+        if (ev.target === overlay) this._closeModal();
+      });
+    }
+
+    if (this._escHandler) {
+      document.removeEventListener("keydown", this._escHandler);
+    }
+    this._escHandler = (ev) => {
+      if (ev.key === "Escape") this._closeModal();
+    };
+    document.addEventListener("keydown", this._escHandler);
+  }
+
+  disconnectedCallback() {
+    if (this._escHandler) {
+      document.removeEventListener("keydown", this._escHandler);
+      this._escHandler = null;
+    }
   }
 
   _maybeRefetch() {
@@ -200,6 +237,29 @@ class SpeiseplanerBaseCard extends HTMLElement {
         color: var(--primary-text-color);
       }
       details.erledigt summary { color: var(--secondary-text-color); }
+      .toolbar { display: flex; justify-content: flex-end; margin-bottom: 8px; }
+      .fab-add {
+        width: 36px; height: 36px; border-radius: 50%; font-size: 20px;
+        line-height: 1; padding: 0; background: var(--primary-color, #03a9f4); color: white;
+        border: none;
+      }
+      .modal-overlay {
+        position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5);
+        display: flex; align-items: center; justify-content: center;
+        z-index: 1000; padding: 16px; box-sizing: border-box;
+      }
+      .modal-box {
+        background: var(--card-background-color, #fff); color: var(--primary-text-color);
+        border-radius: 8px; padding: 16px; max-width: 480px; width: 100%;
+        max-height: 90vh; overflow-y: auto; box-sizing: border-box;
+      }
+      .modal-titel { margin: 0 0 12px; font-size: 20px; }
+      .feld-zeile { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+      .feld-zeile h3 { margin: 0; font-size: 15px; }
+      .feld-voll { width: 100%; box-sizing: border-box; }
+      .feld-mittel { width: 8ch; flex: 0 0 auto; }
+      .feld-klein { width: 6ch; flex: 0 0 auto; }
+      .modal-aktionen { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
       .error {
         margin: 0 16px; padding: 8px; border-radius: 4px;
         background: var(--error-color, #db4437); color: white;
@@ -289,10 +349,6 @@ class SpeiseplanerRezepteCard extends SpeiseplanerBaseCard {
 
   getCardSize() {
     return 8;
-  }
-
-  _shouldSkipRefetch() {
-    return this._modalOpen === true;
   }
 
   _renderContent() {
@@ -465,20 +521,7 @@ class SpeiseplanerRezepteCard extends SpeiseplanerBaseCard {
 
     if (!this._modalOpen) return;
 
-    const overlay = root.querySelector("[data-modal]");
-    if (overlay) {
-      overlay.addEventListener("click", (ev) => {
-        if (ev.target === overlay) this._closeModal();
-      });
-    }
-
-    if (this._escHandler) {
-      document.removeEventListener("keydown", this._escHandler);
-    }
-    this._escHandler = (ev) => {
-      if (ev.key === "Escape") this._closeModal();
-    };
-    document.addEventListener("keydown", this._escHandler);
+    this._attachModalDismissHandlers(root);
 
     const closeButton = root.querySelector("button[data-action='close_modal']");
     if (closeButton) {
@@ -497,13 +540,6 @@ class SpeiseplanerRezepteCard extends SpeiseplanerBaseCard {
     const saveButton = root.querySelector("button[data-action='save_modal']");
     if (saveButton) {
       saveButton.addEventListener("click", () => this._handleSave(root));
-    }
-  }
-
-  disconnectedCallback() {
-    if (this._escHandler) {
-      document.removeEventListener("keydown", this._escHandler);
-      this._escHandler = null;
     }
   }
 
@@ -528,16 +564,12 @@ class SpeiseplanerRezepteCard extends SpeiseplanerBaseCard {
 
   _openModal(rezept) {
     this._editingRezept = rezept;
-    this._modalOpen = true;
-    this._error = null;
-    this._render();
+    super._openModal();
   }
 
   _closeModal() {
-    this._modalOpen = false;
     this._editingRezept = null;
-    this._error = null;
-    this._render();
+    super._closeModal();
   }
 
   _addZutatRow() {
@@ -623,12 +655,6 @@ class SpeiseplanerRezepteCard extends SpeiseplanerBaseCard {
     return (
       super._baseStyles() +
       `<style>
-        .toolbar { display: flex; justify-content: flex-end; margin-bottom: 8px; }
-        .fab-add {
-          width: 36px; height: 36px; border-radius: 50%; font-size: 20px;
-          line-height: 1; padding: 0; background: var(--primary-color, #03a9f4); color: white;
-          border: none;
-        }
         .rezept-liste li.rezept-zeile { display: block; }
         .rezept-kopf { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
         .aktionen { display: flex; gap: 4px; flex-shrink: 0; }
@@ -641,27 +667,15 @@ class SpeiseplanerRezepteCard extends SpeiseplanerBaseCard {
         details.anleitung summary { font-size: 13px; }
         details.anleitung ul { margin: 4px 0; padding-left: 20px; }
         details.anleitung p { margin: 4px 0; }
-        .modal-overlay {
-          position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5);
-          display: flex; align-items: center; justify-content: center;
-          z-index: 1000; padding: 16px; box-sizing: border-box;
-        }
-        .modal-box {
-          background: var(--card-background-color, #fff); color: var(--primary-text-color);
-          border-radius: 8px; padding: 16px; max-width: 480px; width: 100%;
-          max-height: 90vh; overflow-y: auto; box-sizing: border-box;
-        }
-        .modal-titel { margin: 0 0 12px; font-size: 20px; }
-        .feld-zeile { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
-        .feld-zeile h3 { margin: 0; font-size: 15px; }
-        .feld-voll { width: 100%; box-sizing: border-box; }
-        .feld-mittel { width: 8ch; flex: 0 0 auto; }
-        .feld-klein { width: 6ch; flex: 0 0 auto; }
         .bild-bereich { margin: 8px 0; display: flex; flex-direction: column; gap: 6px; }
+        .bild-bereich label { display: block; }
+        .bild-bereich input[type="file"] { display: block; width: 100%; box-sizing: border-box; margin-top: 4px; }
         .bild-vorschau { max-width: 100%; max-height: 160px; border-radius: 4px; object-fit: cover; }
+        .zutat-row { flex-wrap: nowrap; }
+        .zutat-row input[data-zutat="name"] { flex: 1 1 auto; min-width: 0; }
+        .zutat-row select { flex: 1 1 auto; min-width: 0; }
         .zutat-eintrag { margin-bottom: 4px; }
         .zutat-trenner { border: none; border-top: 1px solid var(--divider-color, #ddd); margin: 8px 0; }
-        .modal-aktionen { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
         button[data-action='remove_zutat_row'] {
           background: none; border: none; color: var(--secondary-text-color); padding: 0 4px;
         }
@@ -681,37 +695,27 @@ class SpeiseplanerEinkaufslisteCard extends SpeiseplanerBaseCard {
     const offene = this._data.einkaufsliste.filter((e) => !e.erledigt);
     const erledigte = this._data.einkaufsliste.filter((e) => e.erledigt);
     const gruppen = this._gruppiereNachKategorie(offene);
-    const kategorieOptionen = this._data.kategorien
-      .map((k) => `<option value="${this._escape(k.name)}">${this._escape(k.name)}</option>`)
-      .join("");
 
     const gruppenHtml =
       Object.entries(gruppen)
         .map(([kategorie, eintraege]) => this._renderGruppe(kategorie, eintraege))
         .join("") || `<p class="empty">Einkaufsliste ist leer.</p>`;
 
+    const erledigtOffen = this._istGruppeOffen("__erledigt__", false);
     const erledigtHtml = erledigte.length
-      ? `<details class="gruppe erledigt">
+      ? `<details class="gruppe erledigt" data-gruppe="__erledigt__" ${erledigtOffen ? "open" : ""}>
           <summary>Erledigt (${erledigte.length})</summary>
           ${this._renderItems(erledigte)}
         </details>`
       : "";
 
     return `
-      <form data-form="einkaufsliste_eintrag">
-        <div class="row">
-          <input type="text" name="name" placeholder="Artikel" required>
-          <input type="number" name="anzahl" step="any" value="1" required>
-          <input type="text" name="einheit" placeholder="Einheit">
-          <select name="kategorie">
-            <option value="">Keine Kategorie</option>
-            ${kategorieOptionen}
-          </select>
-          <button type="submit">Hinzufügen</button>
-        </div>
-      </form>
+      <div class="toolbar">
+        <button class="fab-add" type="button" data-action="open_add_modal" title="Artikel hinzufügen">+</button>
+      </div>
       ${gruppenHtml}
       ${erledigtHtml}
+      ${this._modalOpen ? this._renderModal() : ""}
     `;
   }
 
@@ -725,37 +729,81 @@ class SpeiseplanerEinkaufslisteCard extends SpeiseplanerBaseCard {
     return gruppen;
   }
 
+  /** Merkt sich, welche Kategorien der Nutzer auf-/zugeklappt hat, damit ein
+   * Re-Render (z.B. nach dem Löschen eines Eintrags) das nicht zurücksetzt. */
+  _istGruppeOffen(schluessel, standard) {
+    if (this._gruppenZustand && schluessel in this._gruppenZustand) {
+      return this._gruppenZustand[schluessel];
+    }
+    return standard;
+  }
+
   _renderGruppe(kategorie, eintraege) {
+    const offen = this._istGruppeOffen(kategorie, true);
     return `
-      <details class="gruppe" open>
+      <details class="gruppe" data-gruppe="${this._escape(kategorie)}" ${offen ? "open" : ""}>
         <summary>${this._escape(kategorie)} (${eintraege.length})</summary>
         ${this._renderItems(eintraege)}
       </details>
     `;
   }
 
+  _formatEintrag(eintrag) {
+    const einheitTeil = eintrag.einheit ? `${this._escape(eintrag.einheit)} ` : "";
+    return `${eintrag.anzahl} - ${einheitTeil}${this._escape(eintrag.name)}`;
+  }
+
   _renderItems(eintraege) {
     const zeilen = eintraege
-      .map((e) => {
-        const menge = e.einheit
-          ? ` (${e.anzahl} ${this._escape(e.einheit)})`
-          : e.anzahl && e.anzahl !== 1
-          ? ` (${e.anzahl})`
-          : "";
-        return `
+      .map(
+        (e) => `
           <li>
             <label>
               <input type="checkbox" data-action="toggle_erledigt" data-id="${e.id}" ${
           e.erledigt ? "checked" : ""
         }>
-              ${this._escape(e.name)}${menge}
+              ${this._formatEintrag(e)}
             </label>
             <button data-action="delete_einkaufsliste_eintrag" data-id="${e.id}" title="Löschen">✕</button>
-          </li>`;
-      })
+          </li>`
+      )
       .join("");
 
     return `<ul class="list">${zeilen}</ul>`;
+  }
+
+  _renderModal() {
+    const kategorieOptionen = this._data.kategorien
+      .map((k) => `<option value="${this._escape(k.name)}">${this._escape(k.name)}</option>`)
+      .join("");
+
+    return `
+      <div class="modal-overlay" data-modal>
+        <div class="modal-box">
+          <h2 class="modal-titel">Artikel hinzufügen</h2>
+          ${this._error ? `<div class="error">${this._escape(this._error)}</div>` : ""}
+          <form data-form="einkaufsliste-modal">
+            <div class="feld-zeile">
+              <input type="text" class="feld-voll" name="name" placeholder="Artikel" required>
+            </div>
+            <div class="feld-zeile">
+              <input type="number" class="feld-mittel" name="anzahl" step="any" value="1" required>
+              <input type="text" class="feld-mittel" name="einheit" placeholder="Einheit">
+            </div>
+            <div class="feld-zeile">
+              <select class="feld-voll" name="kategorie">
+                <option value="">Keine Kategorie</option>
+                ${kategorieOptionen}
+              </select>
+            </div>
+            <div class="modal-aktionen">
+              <button type="button" data-action="close_modal">Abbrechen</button>
+              <button type="button" data-action="save_modal">Speichern</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    `;
   }
 
   _attachListeners(root) {
@@ -775,15 +823,46 @@ class SpeiseplanerEinkaufslisteCard extends SpeiseplanerBaseCard {
       );
     });
 
-    this._bindForm(root, "einkaufsliste_eintrag", (data) => ({
-      service: "add_einkaufsliste_eintrag",
-      payload: {
-        name: data.get("name"),
-        anzahl: Number(data.get("anzahl")),
-        einheit: data.get("einheit") || "",
-        kategorie: data.get("kategorie") || "",
-      },
-    }));
+    root.querySelectorAll("details[data-gruppe]").forEach((details) => {
+      details.addEventListener("toggle", () => {
+        if (!this._gruppenZustand) this._gruppenZustand = {};
+        this._gruppenZustand[details.dataset.gruppe] = details.open;
+      });
+    });
+
+    const addButton = root.querySelector("button[data-action='open_add_modal']");
+    if (addButton) {
+      addButton.addEventListener("click", () => this._openModal());
+    }
+
+    if (!this._modalOpen) return;
+
+    this._attachModalDismissHandlers(root);
+
+    const closeButton = root.querySelector("button[data-action='close_modal']");
+    if (closeButton) {
+      closeButton.addEventListener("click", () => this._closeModal());
+    }
+
+    const saveButton = root.querySelector("button[data-action='save_modal']");
+    if (saveButton) {
+      saveButton.addEventListener("click", () => this._handleSave(root));
+    }
+  }
+
+  async _handleSave(root) {
+    const form = root.querySelector("form[data-form='einkaufsliste-modal']");
+    const data = new FormData(form);
+
+    const erfolgreich = await this._callService("add_einkaufsliste_eintrag", {
+      name: data.get("name"),
+      anzahl: Number(data.get("anzahl")),
+      einheit: data.get("einheit") || "",
+      kategorie: data.get("kategorie") || "",
+    });
+    if (erfolgreich) {
+      this._closeModal();
+    }
   }
 }
 
