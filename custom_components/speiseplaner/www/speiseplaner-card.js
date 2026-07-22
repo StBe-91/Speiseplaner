@@ -59,7 +59,12 @@ class SpeiseplanerBaseCard extends HTMLElement {
     return out;
   }
 
+  _shouldSkipRefetch() {
+    return false;
+  }
+
   _maybeRefetch() {
+    if (this._shouldSkipRefetch()) return;
     if (!this._watchedStates) return;
     const current = this._captureWatchedStates();
     const changed = Object.keys(current).some(
@@ -70,13 +75,17 @@ class SpeiseplanerBaseCard extends HTMLElement {
     }
   }
 
+  /** Ruft einen Service auf und lädt anschließend neu. Gibt true bei Erfolg,
+   * false bei Fehler zurück (Fehlertext liegt danach in this._error). */
   async _callService(service, data) {
     try {
       await this._hass.callService("speiseplaner", service, data);
       await this._fetchData();
+      return true;
     } catch (err) {
       this._error = (err && err.message) || "Aktion fehlgeschlagen.";
       this._render();
+      return false;
     }
   }
 
@@ -84,6 +93,31 @@ class SpeiseplanerBaseCard extends HTMLElement {
     const div = document.createElement("div");
     div.textContent = value ?? "";
     return div.innerHTML;
+  }
+
+  /** Sehr einfache Auszeichnung: Leerzeile = neuer Absatz, Zeilen mit '- '
+   * oder '* ' am Anfang werden als Liste dargestellt. Bewusst kein volles
+   * Markdown, um ohne externe Bibliothek auszukommen. */
+  _renderMarkdownLite(text) {
+    if (!text) return "";
+    const bloecke = text.split(/\n\s*\n/);
+    return bloecke
+      .map((block) => {
+        const zeilen = block
+          .split("\n")
+          .map((z) => z.trim())
+          .filter((z) => z !== "");
+        if (zeilen.length === 0) return "";
+        const istListe = zeilen.every((z) => /^[-*]\s+/.test(z));
+        if (istListe) {
+          const items = zeilen
+            .map((z) => `<li>${this._escape(z.replace(/^[-*]\s+/, ""))}</li>`)
+            .join("");
+          return `<ul>${items}</ul>`;
+        }
+        return `<p>${zeilen.map((z) => this._escape(z)).join("<br>")}</p>`;
+      })
+      .join("");
   }
 
   _bindForm(root, name, buildCall) {
@@ -151,7 +185,7 @@ class SpeiseplanerBaseCard extends HTMLElement {
       textarea { width: 100%; min-height: 60px; box-sizing: border-box; }
       button[type="submit"], button[data-action] { cursor: pointer; }
       button[data-action="add_zutat_row"] { margin: 4px 0 8px; }
-      .zutat-row { display: flex; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; }
+      .zutat-row { display: flex; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; align-items: center; }
       ul.list { list-style: none; margin: 0; padding: 0; }
       ul.list li {
         display: flex; justify-content: space-between; align-items: center;
@@ -253,98 +287,353 @@ class SpeiseplanerRezepteCard extends SpeiseplanerBaseCard {
     return "Rezepte";
   }
 
-  _renderContent() {
-    const kategorieOptionen = this._data.kategorien
-      .map((k) => `<option value="${this._escape(k.name)}">${this._escape(k.name)}</option>`)
-      .join("");
+  getCardSize() {
+    return 8;
+  }
 
+  _shouldSkipRefetch() {
+    return this._modalOpen === true;
+  }
+
+  _renderContent() {
     const zeilen =
-      this._data.rezepte
-        .map(
-          (r) => `
-          <li>
-            <div>
-              <strong>${this._escape(r.name)}</strong> (${r.portionen} Portionen)
-              <div class="zutaten-liste">${r.zutaten
-                .map((z) => `${this._escape(z.name)} – ${z.anzahl} ${this._escape(z.einheit)}`)
-                .join(", ")}</div>
-            </div>
-            <button data-action="delete_rezept" data-id="${r.id}" title="Löschen">✕</button>
-          </li>`
-        )
-        .join("") || `<li class="empty">Noch keine Rezepte.</li>`;
+      this._data.rezepte.map((r) => this._renderRezeptZeile(r)).join("") ||
+      `<p class="empty">Noch keine Rezepte.</p>`;
 
     return `
-      <form data-form="rezept">
-        <div class="row">
-          <input type="text" name="name" placeholder="Name" required>
-          <input type="number" name="portionen" min="1" value="4" required>
-        </div>
-        <div data-zutaten>
-          ${this._zutatRow(kategorieOptionen)}
-        </div>
-        <button type="button" data-action="add_zutat_row">+ Zutat</button>
-        <textarea name="rezeptanleitung" placeholder="Zubereitung (optional)"></textarea>
-        <button type="submit">Rezept speichern</button>
-      </form>
-      <ul class="list">${zeilen}</ul>
+      <div class="toolbar">
+        <button class="fab-add" type="button" data-action="open_add_modal" title="Rezept hinzufügen">+</button>
+      </div>
+      <ul class="list rezept-liste">${zeilen}</ul>
+      ${this._modalOpen ? this._renderModal() : ""}
     `;
   }
 
-  _zutatRow(kategorieOptionen) {
+  _formatZeiten(rezept) {
+    const teile = [];
+    if (rezept.vorbereitungsdauer) teile.push(`Vorbereitung ${rezept.vorbereitungsdauer} min`);
+    if (rezept.zubereitungsdauer) teile.push(`Zubereitung ${rezept.zubereitungsdauer} min`);
+    return teile.join(" · ");
+  }
+
+  _renderRezeptZeile(rezept) {
+    const zeiten = this._formatZeiten(rezept);
+    return `
+      <li class="rezept-zeile">
+        <div class="rezept-kopf">
+          <div>
+            <strong>${this._escape(rezept.name)}</strong> (${rezept.portionen} Portionen)
+            ${zeiten ? `<div class="zeiten">${this._escape(zeiten)}</div>` : ""}
+          </div>
+          <div class="aktionen">
+            <button data-action="edit_rezept" data-id="${rezept.id}" title="Bearbeiten">✏️</button>
+            <button data-action="delete_rezept" data-id="${rezept.id}" title="Löschen">✕</button>
+          </div>
+        </div>
+        ${rezept.bild ? `<img class="rezept-bild" data-bild-id="${rezept.bild}" alt="">` : ""}
+        <div class="zutaten-liste">${rezept.zutaten
+          .map((z) => `${this._escape(z.name)} – ${z.anzahl} ${this._escape(z.einheit)}`)
+          .join(", ")}</div>
+        ${
+          rezept.rezeptanleitung
+            ? `<details class="anleitung">
+                <summary>Zubereitung</summary>
+                ${this._renderMarkdownLite(rezept.rezeptanleitung)}
+              </details>`
+            : ""
+        }
+      </li>
+    `;
+  }
+
+  _kategorieOptionenHtml(ausgewaehlt) {
+    return this._data.kategorien
+      .map((k) => {
+        const value = this._escape(k.name);
+        const selected = k.name === ausgewaehlt ? " selected" : "";
+        return `<option value="${value}"${selected}>${value}</option>`;
+      })
+      .join("");
+  }
+
+  _zutatRow(zutat) {
     return `
       <div class="zutat-row">
-        <input type="text" placeholder="Zutat" data-zutat="name" required>
-        <input type="number" placeholder="Menge" step="any" data-zutat="anzahl" required>
-        <input type="text" placeholder="Einheit" data-zutat="einheit">
+        <input type="text" placeholder="Zutat" data-zutat="name" value="${this._escape(
+          zutat?.name || ""
+        )}" required>
+        <input type="number" placeholder="Menge" step="any" data-zutat="anzahl" value="${
+          zutat?.anzahl ?? ""
+        }" required>
+        <input type="text" placeholder="Einheit" data-zutat="einheit" value="${this._escape(
+          zutat?.einheit || ""
+        )}">
         <select data-zutat="kategorie">
           <option value="">Keine Kategorie</option>
-          ${kategorieOptionen}
+          ${this._kategorieOptionenHtml(zutat?.kategorie || "")}
         </select>
+        <button type="button" data-action="remove_zutat_row" title="Zutat entfernen">✕</button>
       </div>
     `;
   }
 
-  _addZutatRow() {
-    const container = this.shadowRoot.querySelector("[data-zutaten]");
-    const kategorieOptionen = this._data.kategorien
-      .map((k) => `<option value="${this._escape(k.name)}">${this._escape(k.name)}</option>`)
-      .join("");
-    const wrapper = document.createElement("div");
-    wrapper.innerHTML = this._zutatRow(kategorieOptionen);
-    container.appendChild(wrapper.firstElementChild);
+  _renderModal() {
+    const rezept = this._editingRezept;
+    const zutatenRows = rezept && rezept.zutaten.length
+      ? rezept.zutaten.map((z) => this._zutatRow(z)).join("")
+      : this._zutatRow();
+
+    return `
+      <ha-dialog open heading="${rezept ? "Rezept bearbeiten" : "Rezept hinzufügen"}" data-modal>
+        <div class="dialog-content">
+          ${this._error ? `<div class="error">${this._escape(this._error)}</div>` : ""}
+          <form data-form="rezept-modal">
+            <div class="row">
+              <input type="text" name="name" placeholder="Name" value="${this._escape(
+                rezept?.name || ""
+              )}" required>
+              <input type="number" name="portionen" min="1" value="${rezept?.portionen ?? 4}" required>
+            </div>
+            <div class="row">
+              <label>Vorbereitung (Min.)
+                <input type="number" name="vorbereitungsdauer" min="0" value="${
+                  rezept?.vorbereitungsdauer ?? 0
+                }">
+              </label>
+              <label>Zubereitung (Min.)
+                <input type="number" name="zubereitungsdauer" min="0" value="${
+                  rezept?.zubereitungsdauer ?? 0
+                }">
+              </label>
+            </div>
+            <div class="bild-bereich">
+              ${
+                rezept?.bild
+                  ? `<img class="bild-vorschau" data-bild-id="${rezept.bild}" alt="">
+                     <label><input type="checkbox" name="bild_entfernen"> Bild entfernen</label>`
+                  : ""
+              }
+              <label>${rezept?.bild ? "Bild ersetzen" : "Bild hinzufügen"}
+                <input type="file" name="bild_datei" accept="image/*">
+              </label>
+            </div>
+            <div data-zutaten>${zutatenRows}</div>
+            <button type="button" data-action="add_zutat_row">+ Zutat</button>
+            <label>Zubereitung
+              <textarea name="rezeptanleitung" data-action="anleitung_input"
+                placeholder="Absätze durch Leerzeile trennen, Listenpunkte mit '- ' beginnen"
+              >${this._escape(rezept?.rezeptanleitung || "")}</textarea>
+            </label>
+            <div class="markdown-vorschau" data-vorschau>${this._renderMarkdownLite(
+              rezept?.rezeptanleitung || ""
+            )}</div>
+          </form>
+        </div>
+        <mwc-button slot="secondaryAction" data-action="close_modal">Abbrechen</mwc-button>
+        <mwc-button slot="primaryAction" data-action="save_modal">Speichern</mwc-button>
+      </ha-dialog>
+    `;
   }
 
   _attachListeners(root) {
     this._bindDeleteButtons(root, "delete_rezept", "delete_rezept", "rezept_id");
+    this._signiereBilder(root);
+
+    const addButton = root.querySelector("button[data-action='open_add_modal']");
+    if (addButton) {
+      addButton.addEventListener("click", () => this._openModal(null));
+    }
+
+    root.querySelectorAll("button[data-action='edit_rezept']").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const rezept = this._data.rezepte.find((r) => r.id === btn.dataset.id) || null;
+        this._openModal(rezept);
+      });
+    });
+
+    if (!this._modalOpen) return;
+
+    const dialog = root.querySelector("[data-modal]");
+    if (dialog) {
+      dialog.addEventListener("closed", () => this._closeModal());
+    }
+
+    const closeButton = root.querySelector("button[data-action='close_modal']");
+    if (closeButton) {
+      closeButton.addEventListener("click", () => this._closeModal());
+    }
 
     const addZutatButton = root.querySelector("button[data-action='add_zutat_row']");
     if (addZutatButton) {
       addZutatButton.addEventListener("click", () => this._addZutatRow());
     }
 
-    this._bindForm(root, "rezept", (data) => {
-      const zutaten = [];
-      root.querySelectorAll(".zutat-row").forEach((row) => {
-        const name = row.querySelector("[data-zutat='name']").value.trim();
-        if (!name) return;
-        zutaten.push({
-          name,
-          anzahl: Number(row.querySelector("[data-zutat='anzahl']").value || 0),
-          einheit: row.querySelector("[data-zutat='einheit']").value.trim(),
-          kategorie: row.querySelector("[data-zutat='kategorie']").value,
-        });
-      });
-      return {
-        service: "add_rezept",
-        payload: {
-          name: data.get("name"),
-          portionen: Number(data.get("portionen")),
-          zutaten,
-          rezeptanleitung: data.get("rezeptanleitung") || "",
-        },
-      };
+    root.querySelectorAll("button[data-action='remove_zutat_row']").forEach((btn) => {
+      btn.addEventListener("click", () => btn.closest(".zutat-row").remove());
     });
+
+    const textarea = root.querySelector("textarea[data-action='anleitung_input']");
+    const vorschau = root.querySelector("[data-vorschau]");
+    if (textarea && vorschau) {
+      textarea.addEventListener("input", () => {
+        vorschau.innerHTML = this._renderMarkdownLite(textarea.value);
+      });
+    }
+
+    const saveButton = root.querySelector("button[data-action='save_modal']");
+    if (saveButton) {
+      saveButton.addEventListener("click", () => this._handleSave(root));
+    }
+  }
+
+  /** Löst signierte, kurzlebige URLs für Bilder auf (Bilder sind über die
+   * HA-API nur mit gültigem Token abrufbar, ein <img src> ohne Signatur
+   * würde mit 401 fehlschlagen). */
+  async _signiereBilder(root) {
+    const bilder = root.querySelectorAll("img[data-bild-id]");
+    for (const img of bilder) {
+      const bildId = img.dataset.bildId;
+      try {
+        const signiert = await this._hass.callWS({
+          type: "auth/sign_path",
+          path: `/api/image/serve/${bildId}/512x512`,
+        });
+        img.src = signiert.path;
+      } catch (err) {
+        // Bild bleibt ohne Vorschau, kein harter Fehler für die Karte.
+      }
+    }
+  }
+
+  _openModal(rezept) {
+    this._editingRezept = rezept;
+    this._modalOpen = true;
+    this._error = null;
+    this._render();
+  }
+
+  _closeModal() {
+    this._modalOpen = false;
+    this._editingRezept = null;
+    this._error = null;
+    this._render();
+  }
+
+  _addZutatRow() {
+    const container = this.shadowRoot.querySelector("[data-zutaten]");
+    const wrapper = document.createElement("div");
+    wrapper.innerHTML = this._zutatRow();
+    const row = wrapper.firstElementChild;
+    container.appendChild(row);
+    row
+      .querySelector("[data-action='remove_zutat_row']")
+      .addEventListener("click", () => row.remove());
+  }
+
+  async _hochladenBild(file) {
+    const formData = new FormData();
+    formData.append("file", file);
+    const response = await this._hass.fetchWithAuth("/api/image/upload", {
+      method: "POST",
+      body: formData,
+    });
+    if (!response.ok) {
+      throw new Error("Bild-Upload fehlgeschlagen.");
+    }
+    const ergebnis = await response.json();
+    return ergebnis.id;
+  }
+
+  async _handleSave(root) {
+    const form = root.querySelector("form[data-form='rezept-modal']");
+    const data = new FormData(form);
+
+    const zutaten = [];
+    root.querySelectorAll(".zutat-row").forEach((row) => {
+      const name = row.querySelector("[data-zutat='name']").value.trim();
+      if (!name) return;
+      zutaten.push({
+        name,
+        anzahl: Number(row.querySelector("[data-zutat='anzahl']").value || 0),
+        einheit: row.querySelector("[data-zutat='einheit']").value.trim(),
+        kategorie: row.querySelector("[data-zutat='kategorie']").value,
+      });
+    });
+
+    let bild = this._editingRezept ? this._editingRezept.bild || "" : "";
+    const entfernenCheckbox = form.querySelector("[name='bild_entfernen']");
+    if (entfernenCheckbox && entfernenCheckbox.checked) {
+      bild = "";
+    }
+    const bildDatei = form.querySelector("[name='bild_datei']").files[0];
+    if (bildDatei) {
+      try {
+        bild = await this._hochladenBild(bildDatei);
+      } catch (err) {
+        this._error = "Bild-Upload fehlgeschlagen. Rezept wurde nicht gespeichert.";
+        this._render();
+        return;
+      }
+    }
+
+    const payload = {
+      name: data.get("name"),
+      portionen: Number(data.get("portionen")),
+      vorbereitungsdauer: Number(data.get("vorbereitungsdauer") || 0),
+      zubereitungsdauer: Number(data.get("zubereitungsdauer") || 0),
+      zutaten,
+      rezeptanleitung: data.get("rezeptanleitung") || "",
+      bild,
+    };
+
+    let service = "add_rezept";
+    if (this._editingRezept) {
+      service = "update_rezept";
+      payload.rezept_id = this._editingRezept.id;
+    }
+
+    const erfolgreich = await this._callService(service, payload);
+    if (erfolgreich) {
+      this._closeModal();
+    }
+  }
+
+  _baseStyles() {
+    return (
+      super._baseStyles() +
+      `<style>
+        .toolbar { display: flex; justify-content: flex-end; margin-bottom: 8px; }
+        .fab-add {
+          width: 36px; height: 36px; border-radius: 50%; font-size: 20px;
+          line-height: 1; padding: 0; background: var(--primary-color, #03a9f4); color: white;
+          border: none;
+        }
+        .rezept-liste li.rezept-zeile { display: block; }
+        .rezept-kopf { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+        .aktionen { display: flex; gap: 4px; flex-shrink: 0; }
+        .aktionen button { background: none; border: none; font-size: 16px; padding: 0 4px; }
+        .zeiten { font-size: 12px; color: var(--secondary-text-color); }
+        .rezept-bild {
+          max-width: 100%; max-height: 160px; border-radius: 4px; margin: 6px 0;
+          display: block; object-fit: cover;
+        }
+        details.anleitung summary { font-size: 13px; }
+        details.anleitung ul { margin: 4px 0; padding-left: 20px; }
+        details.anleitung p { margin: 4px 0; }
+        .dialog-content { min-width: min(90vw, 420px); }
+        .bild-bereich { margin: 8px 0; display: flex; flex-direction: column; gap: 6px; }
+        .bild-vorschau { max-width: 100%; max-height: 160px; border-radius: 4px; object-fit: cover; }
+        .markdown-vorschau {
+          border: 1px solid var(--divider-color, #ccc); border-radius: 4px;
+          padding: 8px; margin-top: 4px; font-size: 13px; min-height: 24px;
+        }
+        .markdown-vorschau ul { margin: 4px 0; padding-left: 20px; }
+        .markdown-vorschau p { margin: 4px 0; }
+        button[data-action='remove_zutat_row'] {
+          background: none; border: none; color: var(--secondary-text-color); padding: 0 4px;
+        }
+      </style>`
+    );
   }
 }
 
@@ -479,7 +768,7 @@ window.customCards.push(
   {
     type: "speiseplaner-rezepte-card",
     name: "Speiseplaner: Rezepte",
-    description: "Rezepte anlegen und verwalten.",
+    description: "Rezepte mit Bild, Zeiten und formatierter Zubereitung verwalten.",
   },
   {
     type: "speiseplaner-einkaufsliste-card",

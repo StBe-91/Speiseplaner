@@ -16,6 +16,12 @@ add_rezept:
           kategorie: "Fleisch"
     rezeptanleitung:
       example: "Zutaten schichten und 40 Minuten backen."
+    vorbereitungsdauer:
+      example: 15
+    zubereitungsdauer:
+      example: 40
+    bild:
+      example: "image_id"
 
 update_rezept:
   name: Rezept bearbeiten
@@ -38,6 +44,12 @@ update_rezept:
           kategorie: "Fleisch"
     rezeptanleitung:
       example: "Zutaten schichten und 40 Minuten backen."
+    vorbereitungsdauer:
+      example: 15
+    zubereitungsdauer:
+      example: 40
+    bild:
+      example: "image_id"
 
 delete_rezept:
   name: Rezept löschen

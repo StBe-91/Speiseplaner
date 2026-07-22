@@ -21,6 +21,9 @@ async def async_setup_services(hass: HomeAssistant, storage):
                 Zutat(**i) for i in call.data["zutaten"]
             ],
             rezeptanleitung=call.data.get("rezeptanleitung", ""),
+            vorbereitungsdauer=call.data.get("vorbereitungsdauer", 0),
+            zubereitungsdauer=call.data.get("zubereitungsdauer", 0),
+            bild=call.data.get("bild", ""),
         )
 
         storage.data["rezepte"].append(asdict(rezept))
@@ -38,6 +41,9 @@ async def async_setup_services(hass: HomeAssistant, storage):
             portionen=call.data["portionen"],
             zutaten=[Zutat(**i) for i in call.data["zutaten"]],
             rezeptanleitung=call.data.get("rezeptanleitung", ""),
+            vorbereitungsdauer=call.data.get("vorbereitungsdauer", 0),
+            zubereitungsdauer=call.data.get("zubereitungsdauer", 0),
+            bild=call.data.get("bild", ""),
         )
         rezept_data.clear()
         rezept_data.update(asdict(rezept))
@@ -79,6 +85,9 @@ async def async_setup_services(hass: HomeAssistant, storage):
             portionen=rezept_data["portionen"],
             zutaten=[Zutat(**z) for z in rezept_data["zutaten"]],
             rezeptanleitung=rezept_data.get("rezeptanleitung", ""),
+            vorbereitungsdauer=rezept_data.get("vorbereitungsdauer", 0),
+            zubereitungsdauer=rezept_data.get("zubereitungsdauer", 0),
+            bild=rezept_data.get("bild", ""),
         )
         storage.add_zutaten_to_einkaufsliste(rezept.scale_to(portionen))
 

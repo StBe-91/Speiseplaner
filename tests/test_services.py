@@ -79,6 +79,57 @@ async def test_add_rezept_speichert_zutaten_als_dicts():
     assert gespeicherte_zutaten[0]["name"] == "Hackfleisch"
 
 
+async def test_add_rezept_ohne_zeitangaben_und_bild_verwendet_defaults():
+    storage = SpeiseplanerStorage(hass=object())
+    services = await setup_services(storage)
+
+    await services["add_rezept"](
+        FakeServiceCall({"name": "Lasagne", "portionen": 4, "zutaten": []})
+    )
+
+    rezept = storage.data["rezepte"][0]
+    assert rezept["vorbereitungsdauer"] == 0
+    assert rezept["zubereitungsdauer"] == 0
+    assert rezept["bild"] == ""
+
+
+async def test_add_rezept_speichert_zeitangaben_und_bild():
+    storage = SpeiseplanerStorage(hass=object())
+    services = await setup_services(storage)
+
+    await services["add_rezept"](
+        FakeServiceCall(
+            {
+                "name": "Lasagne",
+                "portionen": 4,
+                "zutaten": [],
+                "vorbereitungsdauer": 15,
+                "zubereitungsdauer": 40,
+                "bild": "bild-123",
+            }
+        )
+    )
+
+    rezept = storage.data["rezepte"][0]
+    assert rezept["vorbereitungsdauer"] == 15
+    assert rezept["zubereitungsdauer"] == 40
+    assert rezept["bild"] == "bild-123"
+
+
+async def test_add_speiseplaneintrag_funktioniert_mit_zeitangaben_und_bild():
+    storage = make_storage_mit_rezept()
+    storage.data["rezepte"][0]["vorbereitungsdauer"] = 15
+    storage.data["rezepte"][0]["zubereitungsdauer"] = 40
+    storage.data["rezepte"][0]["bild"] = "bild-123"
+    services = await setup_services(storage)
+
+    await services["add_speiseplaneintrag"](
+        FakeServiceCall({"datum": "2026-07-20", "rezept_id": "r1", "portionen": 4})
+    )
+
+    assert len(storage.data["einkaufsliste"]) == 1
+
+
 # -- update_rezept / delete_rezept ---------------------------------------
 
 
@@ -103,6 +154,30 @@ async def test_update_rezept_aktualisiert_felder():
     assert rezept["name"] == "Lasagne (vegetarisch)"
     assert rezept["portionen"] == 6
     assert rezept["zutaten"][0]["name"] == "Linsen"
+
+
+async def test_update_rezept_aktualisiert_zeitangaben_und_bild():
+    storage = make_storage_mit_rezept()
+    services = await setup_services(storage)
+
+    await services["update_rezept"](
+        FakeServiceCall(
+            {
+                "rezept_id": "r1",
+                "name": "Lasagne",
+                "portionen": 4,
+                "zutaten": [],
+                "vorbereitungsdauer": 20,
+                "zubereitungsdauer": 45,
+                "bild": "bild-456",
+            }
+        )
+    )
+
+    rezept = storage.data["rezepte"][0]
+    assert rezept["vorbereitungsdauer"] == 20
+    assert rezept["zubereitungsdauer"] == 45
+    assert rezept["bild"] == "bild-456"
 
 
 async def test_update_rezept_mit_unbekannter_id_wirft_fehler():

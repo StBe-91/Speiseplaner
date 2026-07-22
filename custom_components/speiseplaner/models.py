@@ -25,6 +25,9 @@ class Rezept:
     portionen: int
     zutaten: List[Zutat]
     rezeptanleitung: str = ""
+    vorbereitungsdauer: int = 0
+    zubereitungsdauer: int = 0
+    bild: str = ""
 
     def scale_to(self, portionen: int) -> List[Zutat]:
         factor = portionen / self.portionen
